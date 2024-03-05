@@ -4,3 +4,4 @@ functional-tests/sops
 Cargo.lock
 vendor/
 profile.out
+.idea

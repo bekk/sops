@@ -824,6 +824,10 @@ func main() {
 					Name:  "filename-override",
 					Usage: "Use this filename instead of the provided argument for loading configuration, and for determining input type and output type",
 				},
+				cli.StringFlag{
+					Name:  "encryption-config",
+					Usage: "encryption configuration as a YAML string instead of a file",
+				},
 			}, keyserviceFlags...),
 			Action: func(c *cli.Context) error {
 				if c.Bool("verbose") {
@@ -847,12 +851,20 @@ func main() {
 				if fileNameOverride == "" {
 					fileNameOverride = fileName
 				}
+				configString := c.String("encryption-config")
 
 				inputStore := inputStore(c, fileNameOverride)
 				outputStore := outputStore(c, fileNameOverride)
 				svcs := keyservices(c)
 
-				encConfig, err := getEncryptConfig(c, fileNameOverride)
+				var encConfig encryptConfig
+
+				if configString != "" {
+					encConfig, err = getEncryptConfigFromString(c, fileNameOverride, configString)
+				} else {
+					encConfig, err = getEncryptConfig(c, fileNameOverride)
+				}
+
 				if err != nil {
 					return toExitError(err)
 				}
@@ -1761,6 +1773,81 @@ func getEncryptConfig(c *cli.Context, fileName string) (encryptConfig, error) {
 	}, nil
 }
 
+func getEncryptConfigFromString(c *cli.Context, fileName string, configString string) (encryptConfig, error) {
+	unencryptedSuffix := c.String("unencrypted-suffix")
+	encryptedSuffix := c.String("encrypted-suffix")
+	encryptedRegex := c.String("encrypted-regex")
+	unencryptedRegex := c.String("unencrypted-regex")
+	macOnlyEncrypted := c.Bool("mac-only-encrypted")
+	conf, err := loadConfigFromString(configString, fileName, nil)
+	if err != nil {
+		return encryptConfig{}, toExitError(err)
+	}
+	if conf != nil {
+		// command line options have precedence
+		if unencryptedSuffix == "" {
+			unencryptedSuffix = conf.UnencryptedSuffix
+		}
+		if encryptedSuffix == "" {
+			encryptedSuffix = conf.EncryptedSuffix
+		}
+		if encryptedRegex == "" {
+			encryptedRegex = conf.EncryptedRegex
+		}
+		if unencryptedRegex == "" {
+			unencryptedRegex = conf.UnencryptedRegex
+		}
+		if !macOnlyEncrypted {
+			macOnlyEncrypted = conf.MACOnlyEncrypted
+		}
+	}
+
+	cryptRuleCount := 0
+	if unencryptedSuffix != "" {
+		cryptRuleCount++
+	}
+	if encryptedSuffix != "" {
+		cryptRuleCount++
+	}
+	if encryptedRegex != "" {
+		cryptRuleCount++
+	}
+	if unencryptedRegex != "" {
+		cryptRuleCount++
+	}
+
+	if cryptRuleCount > 1 {
+		return encryptConfig{}, common.NewExitError("Error: cannot use more than one of encrypted_suffix, unencrypted_suffix, encrypted_regex, or unencrypted_regex in the same file", codes.ErrorConflictingParameters)
+	}
+
+	// only supply the default UnencryptedSuffix when EncryptedSuffix, EncryptedRegex, and others are not provided
+	if cryptRuleCount == 0 {
+		unencryptedSuffix = sops.DefaultUnencryptedSuffix
+	}
+
+	var groups []sops.KeyGroup
+	groups, err = keyGroupsFromString(c, configString, fileName)
+	if err != nil {
+		return encryptConfig{}, err
+	}
+
+	var threshold int
+	threshold, err = shamirThreshold(c, fileName)
+	if err != nil {
+		return encryptConfig{}, err
+	}
+
+	return encryptConfig{
+		UnencryptedSuffix: unencryptedSuffix,
+		EncryptedSuffix:   encryptedSuffix,
+		UnencryptedRegex:  unencryptedRegex,
+		EncryptedRegex:    encryptedRegex,
+		MACOnlyEncrypted:  macOnlyEncrypted,
+		KeyGroups:         groups,
+		GroupThreshold:    threshold,
+	}, nil
+}
+
 func getMasterKeys(c *cli.Context, kmsEncryptionContext map[string]*string, kmsOptionName string, pgpOptionName string, gcpKmsOptionName string, azureKvOptionName string, hcVaultTransitOptionName string, ageOptionName string) ([]keys.MasterKey, error) {
 	var masterKeys []keys.MasterKey
 	for _, k := range kms.MasterKeysFromArnString(c.String(kmsOptionName), kmsEncryptionContext, c.String("aws-profile")) {
@@ -2002,6 +2089,82 @@ func keyGroups(c *cli.Context, file string) ([]sops.KeyGroup, error) {
 	return []sops.KeyGroup{group}, nil
 }
 
+func keyGroupsFromString(c *cli.Context, configString string, file string) ([]sops.KeyGroup, error) {
+	var kmsKeys []keys.MasterKey
+	var pgpKeys []keys.MasterKey
+	var cloudKmsKeys []keys.MasterKey
+	var azkvKeys []keys.MasterKey
+	var hcVaultMkKeys []keys.MasterKey
+	var ageMasterKeys []keys.MasterKey
+	kmsEncryptionContext := kms.ParseKMSContext(c.String("encryption-context"))
+	if c.String("encryption-context") != "" && kmsEncryptionContext == nil {
+		return nil, common.NewExitError("Invalid KMS encryption context format", codes.ErrorInvalidKMSEncryptionContextFormat)
+	}
+	if c.String("kms") != "" {
+		for _, k := range kms.MasterKeysFromArnString(c.String("kms"), kmsEncryptionContext, c.String("aws-profile")) {
+			kmsKeys = append(kmsKeys, k)
+		}
+	}
+	if c.String("gcp-kms") != "" {
+		for _, k := range gcpkms.MasterKeysFromResourceIDString(c.String("gcp-kms")) {
+			cloudKmsKeys = append(cloudKmsKeys, k)
+		}
+	}
+	if c.String("azure-kv") != "" {
+		azureKeys, err := azkv.MasterKeysFromURLs(c.String("azure-kv"))
+		if err != nil {
+			return nil, err
+		}
+		for _, k := range azureKeys {
+			azkvKeys = append(azkvKeys, k)
+		}
+	}
+	if c.String("hc-vault-transit") != "" {
+		hcVaultKeys, err := hcvault.NewMasterKeysFromURIs(c.String("hc-vault-transit"))
+		if err != nil {
+			return nil, err
+		}
+		for _, k := range hcVaultKeys {
+			hcVaultMkKeys = append(hcVaultMkKeys, k)
+		}
+	}
+	if c.String("pgp") != "" {
+		for _, k := range pgp.MasterKeysFromFingerprintString(c.String("pgp")) {
+			pgpKeys = append(pgpKeys, k)
+		}
+	}
+	if c.String("age") != "" {
+		ageKeys, err := age.MasterKeysFromRecipients(c.String("age"))
+		if err != nil {
+			return nil, err
+		}
+		for _, k := range ageKeys {
+			ageMasterKeys = append(ageMasterKeys, k)
+		}
+	}
+	if c.String("kms") == "" && c.String("pgp") == "" && c.String("gcp-kms") == "" && c.String("azure-kv") == "" && c.String("hc-vault-transit") == "" && c.String("age") == "" {
+		conf, err := loadConfigFromString(configString, file, kmsEncryptionContext)
+		// config file might just not be supplied, without any error
+		if conf == nil {
+			errMsg := "config file not found and no keys provided through command line options"
+			if err != nil {
+				errMsg = fmt.Sprintf("%s: %s", errMsg, err)
+			}
+			return nil, fmt.Errorf(errMsg)
+		}
+		return conf.KeyGroups, err
+	}
+	var group sops.KeyGroup
+	group = append(group, kmsKeys...)
+	group = append(group, cloudKmsKeys...)
+	group = append(group, azkvKeys...)
+	group = append(group, pgpKeys...)
+	group = append(group, hcVaultMkKeys...)
+	group = append(group, ageMasterKeys...)
+	log.Debugf("Master keys available:  %+v", group)
+	return []sops.KeyGroup{group}, nil
+}
+
 // loadConfig will look for an existing config file, either provided through the command line, or using config.FindConfigFile.
 // Since a config file is not required, this function does not error when one is not found, and instead returns a nil config pointer
 func loadConfig(c *cli.Context, file string, kmsEncryptionContext map[string]*string) (*config.Config, error) {
@@ -2018,6 +2181,15 @@ func loadConfig(c *cli.Context, file string, kmsEncryptionContext map[string]*st
 		}
 	}
 	conf, err := config.LoadCreationRuleForFile(configPath, file, kmsEncryptionContext)
+	if err != nil {
+		return nil, err
+	}
+	return conf, nil
+}
+
+func loadConfigFromString(configString string, file string, kmsEncryptionContext map[string]*string) (*config.Config, error) {
+	var err error
+	conf, err := config.LoadCreationRuleForFileFromString(configString, file, kmsEncryptionContext)
 	if err != nil {
 		return nil, err
 	}

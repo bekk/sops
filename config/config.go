@@ -269,6 +269,16 @@ func loadConfigFile(confPath string) (*configFile, error) {
 	return conf, nil
 }
 
+func loadConfigFileFromString(yamlString string) (*configFile, error) {
+	conf := &configFile{}
+	conf.Stores = *NewStoresConfig()
+	err := conf.load([]byte(yamlString))
+	if err != nil {
+		return nil, fmt.Errorf("error loading config: %s", err)
+	}
+	return conf, nil
+}
+
 func configFromRule(rule *creationRule, kmsEncryptionContext map[string]*string) (*Config, error) {
 	cryptRuleCount := 0
 	if rule.UnencryptedSuffix != "" {
@@ -408,6 +418,15 @@ func LoadCreationRuleForFile(confPath string, filePath string, kmsEncryptionCont
 	}
 
 	return parseCreationRuleForFile(conf, confPath, filePath, kmsEncryptionContext)
+}
+
+func LoadCreationRuleForFileFromString(configString string, filePath string, kmsEncryptionContext map[string]*string) (*Config, error) {
+	conf, err := loadConfigFileFromString(configString)
+	if err != nil {
+		return nil, err
+	}
+
+	return parseCreationRuleForFile(conf, filePath, filePath, kmsEncryptionContext)
 }
 
 // LoadDestinationRuleForFile works the same as LoadCreationRuleForFile, but gets the "creation_rule" from the matching destination_rule's
