@@ -259,14 +259,13 @@ func main() {
 					return toExitError(err)
 				}
 				opts := decryptOpts{
-					OutputStore:           outputStore,
-					InputStore:            inputStore,
-					InputPath:             fileName,
-					Cipher:                aes.NewCipher(),
-					KeyServices:           svcs,
-					DecryptionOrder:       order,
-					IgnoreMAC:             c.Bool("ignore-mac"),
-					DecryptionCredentials: map[string]string{"gcp-kms": c.String("gcp-access-token")},
+					OutputStore:     outputStore,
+					InputStore:      inputStore,
+					InputPath:       fileName,
+					Cipher:          aes.NewCipher(),
+					KeyServices:     svcs,
+					DecryptionOrder: order,
+					IgnoreMAC:       c.Bool("ignore-mac"),
 				}
 
 				output, err := decrypt(opts)
@@ -1599,14 +1598,15 @@ func main() {
 				return common.NewExitError(fmt.Errorf("error parsing --extract path: %s", err), codes.InvalidTreePathFormat)
 			}
 			output, err = decrypt(decryptOpts{
-				OutputStore:     outputStore,
-				InputStore:      inputStore,
-				InputPath:       fileName,
-				Cipher:          aes.NewCipher(),
-				Extract:         extract,
-				KeyServices:     svcs,
-				DecryptionOrder: order,
-				IgnoreMAC:       c.Bool("ignore-mac"),
+				OutputStore:           outputStore,
+				InputStore:            inputStore,
+				InputPath:             fileName,
+				Cipher:                aes.NewCipher(),
+				Extract:               extract,
+				KeyServices:           svcs,
+				DecryptionOrder:       order,
+				IgnoreMAC:             c.Bool("ignore-mac"),
+				DecryptionCredentials: map[string]string{"gcp-kms": c.String("gcp-access-token")},
 			})
 		}
 		if c.Bool("rotate") {
