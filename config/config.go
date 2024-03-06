@@ -269,7 +269,7 @@ func loadConfigFile(confPath string) (*configFile, error) {
 	return conf, nil
 }
 
-func loadConfigFileFromString(yamlString string) (*configFile, error) {
+func loadConfigFromString(yamlString string) (*configFile, error) {
 	conf := &configFile{}
 	conf.Stores = *NewStoresConfig()
 	err := conf.load([]byte(yamlString))
@@ -420,8 +420,8 @@ func LoadCreationRuleForFile(confPath string, filePath string, kmsEncryptionCont
 	return parseCreationRuleForFile(conf, confPath, filePath, kmsEncryptionContext)
 }
 
-func LoadCreationRuleForFileFromString(configString string, filePath string, kmsEncryptionContext map[string]*string) (*Config, error) {
-	conf, err := loadConfigFileFromString(configString)
+func LoadCreationRuleFromConfigString(configString string, filePath string, kmsEncryptionContext map[string]*string) (*Config, error) {
+	conf, err := loadConfigFromString(configString)
 	if err != nil {
 		return nil, err
 	}

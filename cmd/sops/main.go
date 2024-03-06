@@ -825,8 +825,8 @@ func main() {
 					Usage: "Use this filename instead of the provided argument for loading configuration, and for determining input type and output type",
 				},
 				cli.StringFlag{
-					Name:  "encryption-config",
-					Usage: "encryption configuration as a YAML string instead of a file",
+					Name:  "encrypt-config",
+					Usage: "encrypt configuration as a YAML string instead of a file",
 				},
 			}, keyserviceFlags...),
 			Action: func(c *cli.Context) error {
@@ -851,7 +851,7 @@ func main() {
 				if fileNameOverride == "" {
 					fileNameOverride = fileName
 				}
-				configString := c.String("encryption-config")
+				configString := c.String("encrypt-config")
 
 				inputStore := inputStore(c, fileNameOverride)
 				outputStore := outputStore(c, fileNameOverride)
@@ -861,7 +861,9 @@ func main() {
 
 				if configString != "" {
 					encConfig, err = getEncryptConfigFromString(c, fileNameOverride, configString)
-				} else {
+				}
+
+				if configString == "" || err != nil {
 					encConfig, err = getEncryptConfig(c, fileNameOverride)
 				}
 
@@ -2189,7 +2191,7 @@ func loadConfig(c *cli.Context, file string, kmsEncryptionContext map[string]*st
 
 func loadConfigFromString(configString string, file string, kmsEncryptionContext map[string]*string) (*config.Config, error) {
 	var err error
-	conf, err := config.LoadCreationRuleForFileFromString(configString, file, kmsEncryptionContext)
+	conf, err := config.LoadCreationRuleFromConfigString(configString, file, kmsEncryptionContext)
 	if err != nil {
 		return nil, err
 	}
