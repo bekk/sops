@@ -1,5 +1,7 @@
 syntax = "proto3";
 
+option go_package="keyservice/";
+
 message Key {
 	oneof key_type {
 		KmsKey kms_key = 1;
@@ -24,6 +26,7 @@ message KmsKey {
 
 message GcpKmsKey {
 	string resource_id = 1;
+	string access_token = 2;
 }
 
 message VaultKey {
