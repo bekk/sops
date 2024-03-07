@@ -84,7 +84,7 @@ func updateFile(opts Opts) error {
 			return nil
 		}
 	}
-	key, err := tree.Metadata.GetDataKeyWithKeyServices(opts.KeyServices, opts.DecryptionOrder)
+	key, err := tree.Metadata.GetDataKeyWithKeyServices(opts.KeyServices, opts.DecryptionOrder, nil)
 	if err != nil {
 		return common.NewExitError(err, codes.CouldNotRetrieveKey)
 	}

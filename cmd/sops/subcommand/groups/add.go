@@ -26,7 +26,7 @@ func Add(opts AddOpts) error {
 	if err != nil {
 		return err
 	}
-	dataKey, err := tree.Metadata.GetDataKeyWithKeyServices(opts.KeyServices, opts.DecryptionOrder)
+	dataKey, err := tree.Metadata.GetDataKeyWithKeyServices(opts.KeyServices, opts.DecryptionOrder, nil)
 	if err != nil {
 		return err
 	}

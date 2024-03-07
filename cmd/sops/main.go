@@ -179,13 +179,14 @@ func main() {
 					return toExitError(err)
 				}
 				opts := decryptOpts{
-					OutputStore:     &dotenv.Store{},
-					InputStore:      inputStore,
-					InputPath:       fileName,
-					Cipher:          aes.NewCipher(),
-					KeyServices:     svcs,
-					DecryptionOrder: order,
-					IgnoreMAC:       c.Bool("ignore-mac"),
+					OutputStore:           &dotenv.Store{},
+					InputStore:            inputStore,
+					InputPath:             fileName,
+					Cipher:                aes.NewCipher(),
+					KeyServices:           svcs,
+					DecryptionOrder:       order,
+					IgnoreMAC:             c.Bool("ignore-mac"),
+					DecryptionCredentials: map[string]string{"gcp-kms": c.String("gcp-access-token")},
 				}
 
 				if c.Bool("background") {
@@ -699,14 +700,15 @@ func main() {
 					return common.NewExitError(fmt.Errorf("error parsing --extract path: %s", err), codes.InvalidTreePathFormat)
 				}
 				output, err := decrypt(decryptOpts{
-					OutputStore:     outputStore,
-					InputStore:      inputStore,
-					InputPath:       fileName,
-					Cipher:          aes.NewCipher(),
-					Extract:         extract,
-					KeyServices:     svcs,
-					DecryptionOrder: order,
-					IgnoreMAC:       c.Bool("ignore-mac"),
+					OutputStore:           outputStore,
+					InputStore:            inputStore,
+					InputPath:             fileName,
+					Cipher:                aes.NewCipher(),
+					Extract:               extract,
+					KeyServices:           svcs,
+					DecryptionOrder:       order,
+					IgnoreMAC:             c.Bool("ignore-mac"),
+					DecryptionCredentials: map[string]string{"gcp-kms": c.String("gcp-access-token")},
 				})
 				if err != nil {
 					return toExitError(err)
@@ -767,6 +769,10 @@ func main() {
 					Name:   "gcp-kms",
 					Usage:  "comma separated list of GCP KMS resource IDs",
 					EnvVar: "SOPS_GCP_KMS_IDS",
+				},
+				cli.StringFlag{
+					Name:  "gcp-access-token",
+					Usage: "access token to use for GCP KMS access",
 				},
 				cli.StringFlag{
 					Name:   "azure-kv",
@@ -1088,6 +1094,10 @@ func main() {
 					EnvVar: "SOPS_GCP_KMS_IDS",
 				},
 				cli.StringFlag{
+					Name:  "gcp-access-token",
+					Usage: "access token to use for GCP KMS access",
+				},
+				cli.StringFlag{
 					Name:   "azure-kv",
 					Usage:  "comma separated list of Azure Key Vault URLs",
 					EnvVar: "SOPS_AZURE_KEYVAULT_URLS",
@@ -1345,6 +1355,10 @@ func main() {
 			EnvVar: "SOPS_GCP_KMS_IDS",
 		},
 		cli.StringFlag{
+			Name:  "gcp-access-token",
+			Usage: "access token to use for GCP KMS access",
+		},
+		cli.StringFlag{
 			Name:   "azure-kv",
 			Usage:  "comma separated list of Azure Key Vault URLs",
 			EnvVar: "SOPS_AZURE_KEYVAULT_URLS",
@@ -1584,14 +1598,15 @@ func main() {
 				return common.NewExitError(fmt.Errorf("error parsing --extract path: %s", err), codes.InvalidTreePathFormat)
 			}
 			output, err = decrypt(decryptOpts{
-				OutputStore:     outputStore,
-				InputStore:      inputStore,
-				InputPath:       fileName,
-				Cipher:          aes.NewCipher(),
-				Extract:         extract,
-				KeyServices:     svcs,
-				DecryptionOrder: order,
-				IgnoreMAC:       c.Bool("ignore-mac"),
+				OutputStore:           outputStore,
+				InputStore:            inputStore,
+				InputPath:             fileName,
+				Cipher:                aes.NewCipher(),
+				Extract:               extract,
+				KeyServices:           svcs,
+				DecryptionOrder:       order,
+				IgnoreMAC:             c.Bool("ignore-mac"),
+				DecryptionCredentials: map[string]string{"gcp-kms": c.String("gcp-access-token")},
 			})
 		}
 		if c.Bool("rotate") {

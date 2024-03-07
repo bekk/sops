@@ -626,7 +626,7 @@ func (m *Metadata) UpdateMasterKeysWithKeyServices(dataKey []byte, svcs []keyser
 	for i, group := range m.KeyGroups {
 		part := parts[i]
 		for _, key := range group {
-			svcKey := keyservice.KeyFromMasterKey(key)
+			svcKey := keyservice.KeyFromMasterKey(key, nil)
 			var keyErrs []error
 			encrypted := false
 			for _, svc := range svcs {
@@ -661,7 +661,7 @@ func (m *Metadata) UpdateMasterKeys(dataKey []byte) (errs []error) {
 
 // GetDataKeyWithKeyServices retrieves the data key, asking KeyServices to decrypt it with each
 // MasterKey in the Metadata's KeySources until one of them succeeds.
-func (m Metadata) GetDataKeyWithKeyServices(svcs []keyservice.KeyServiceClient, decryptionOrder []string) ([]byte, error) {
+func (m Metadata) GetDataKeyWithKeyServices(svcs []keyservice.KeyServiceClient, decryptionOrder []string, decryptionCredentials map[string]string) ([]byte, error) {
 	if m.DataKey != nil {
 		return m.DataKey, nil
 	}
@@ -671,7 +671,7 @@ func (m Metadata) GetDataKeyWithKeyServices(svcs []keyservice.KeyServiceClient, 
 	}
 	var parts [][]byte
 	for i, group := range m.KeyGroups {
-		part, err := decryptKeyGroup(group, svcs, decryptionOrder)
+		part, err := decryptKeyGroup(group, svcs, decryptionOrder, decryptionCredentials)
 		if err == nil {
 			parts = append(parts, part)
 		}
@@ -701,14 +701,14 @@ func (m Metadata) GetDataKeyWithKeyServices(svcs []keyservice.KeyServiceClient, 
 // decryptKeyGroup tries to decrypt the contents of the provided KeyGroup with
 // any of the MasterKeys in the KeyGroup with any of the provided key services,
 // returning as soon as one key service succeeds.
-func decryptKeyGroup(group KeyGroup, svcs []keyservice.KeyServiceClient, decryptionOrder []string) ([]byte, error) {
+func decryptKeyGroup(group KeyGroup, svcs []keyservice.KeyServiceClient, decryptionOrder []string, decryptionCredentials map[string]string) ([]byte, error) {
 	var keyErrs []error
 	// Sort MasterKeys in the group so we try them in specific order
 	// Use sorted indices to avoid group slice modification
 	indices := sortKeyGroupIndices(group, decryptionOrder)
 	for _, indexVal := range indices {
 		key := group[indexVal]
-		part, err := decryptKey(key, svcs)
+		part, err := decryptKey(key, svcs, decryptionCredentials)
 		if err != nil {
 			keyErrs = append(keyErrs, err)
 		} else {
@@ -751,8 +751,8 @@ func sortKeyGroupIndices(group KeyGroup, decryptionOrder []string) []int {
 
 // decryptKey tries to decrypt the contents of the provided MasterKey with any
 // of the key services, returning as soon as one key service succeeds.
-func decryptKey(key keys.MasterKey, svcs []keyservice.KeyServiceClient) ([]byte, error) {
-	svcKey := keyservice.KeyFromMasterKey(key)
+func decryptKey(key keys.MasterKey, svcs []keyservice.KeyServiceClient, credentials map[string]string) ([]byte, error) {
+	svcKey := keyservice.KeyFromMasterKey(key, credentials)
 	var part []byte
 	decryptErr := decryptKeyError{
 		keyName: key.ToString(),
@@ -787,7 +787,7 @@ func decryptKey(key keys.MasterKey, svcs []keyservice.KeyServiceClient) ([]byte,
 func (m Metadata) GetDataKey() ([]byte, error) {
 	return m.GetDataKeyWithKeyServices([]keyservice.KeyServiceClient{
 		keyservice.NewLocalClient(),
-	}, nil)
+	}, nil, nil)
 }
 
 // ToBytes converts a string, int, float or bool to a byte representation.
