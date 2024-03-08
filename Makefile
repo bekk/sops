@@ -2,14 +2,14 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-PROJECT             := github.com/getsops/sops/v3
+PROJECT             := github.com/MagnusTonnessen/sops
 PROJECT_DIR         := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
 BIN_DIR             := $(PROJECT_DIR)/bin
 
 GO                  := GOPROXY=https://proxy.golang.org go
 GO_TEST_FLAGS       ?= -race -coverprofile=profile.out -covermode=atomic
 
-GITHUB_REPOSITORY   ?= github.com/getsops/sops
+GITHUB_REPOSITORY   ?= github.com/MagnusTonnessen/sops
 
 STATICCHECK         := $(BIN_DIR)/staticcheck
 STATICCHECK_VERSION := latest

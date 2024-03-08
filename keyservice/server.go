@@ -42,7 +42,8 @@ func (ks *Server) encryptWithKms(key *KmsKey, plaintext []byte) ([]byte, error) 
 
 func (ks *Server) encryptWithGcpKms(key *GcpKmsKey, plaintext []byte) ([]byte, error) {
 	gcpKmsKey := gcpkms.MasterKey{
-		ResourceID: key.ResourceId,
+		ResourceID:  key.ResourceId,
+		AccessToken: gcpkms.AccessToken(key.AccessToken),
 	}
 	err := gcpKmsKey.Encrypt(plaintext)
 	if err != nil {

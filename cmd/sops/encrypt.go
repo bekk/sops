@@ -15,13 +15,14 @@ import (
 )
 
 type encryptConfig struct {
-	UnencryptedSuffix string
-	EncryptedSuffix   string
-	UnencryptedRegex  string
-	EncryptedRegex    string
-	MACOnlyEncrypted  bool
-	KeyGroups         []sops.KeyGroup
-	GroupThreshold    int
+	UnencryptedSuffix     string
+	EncryptedSuffix       string
+	UnencryptedRegex      string
+	EncryptedRegex        string
+	MACOnlyEncrypted      bool
+	KeyGroups             []sops.KeyGroup
+	GroupThreshold        int
+	EncryptionCredentials map[string]string
 }
 
 type encryptOpts struct {
@@ -97,7 +98,7 @@ func encrypt(opts encryptOpts) (encryptedFile []byte, err error) {
 		Metadata: metadataFromEncryptionConfig(opts.encryptConfig),
 		FilePath: path,
 	}
-	dataKey, errs := tree.GenerateDataKeyWithKeyServices(opts.KeyServices)
+	dataKey, errs := tree.GenerateDataKeyWithKeyServices(opts.KeyServices, opts.EncryptionCredentials)
 	if len(errs) > 0 {
 		err = fmt.Errorf("Could not generate data key: %s", errs)
 		return nil, err

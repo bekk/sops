@@ -10,26 +10,28 @@ import (
 )
 
 type setOpts struct {
-	Cipher          sops.Cipher
-	InputStore      sops.Store
-	OutputStore     sops.Store
-	InputPath       string
-	IgnoreMAC       bool
-	TreePath        []interface{}
-	Value           interface{}
-	KeyServices     []keyservice.KeyServiceClient
-	DecryptionOrder []string
+	Cipher                sops.Cipher
+	InputStore            sops.Store
+	OutputStore           sops.Store
+	InputPath             string
+	IgnoreMAC             bool
+	TreePath              []interface{}
+	Value                 interface{}
+	KeyServices           []keyservice.KeyServiceClient
+	DecryptionOrder       []string
+	DecryptionCredentials map[string]string
 }
 
 func set(opts setOpts) ([]byte, error) {
 	// Load the file
 	// TODO: Issue #173: if the file does not exist, create it with the contents passed in as opts.Value
 	tree, err := common.LoadEncryptedFileWithBugFixes(common.GenericDecryptOpts{
-		Cipher:      opts.Cipher,
-		InputStore:  opts.InputStore,
-		InputPath:   opts.InputPath,
-		IgnoreMAC:   opts.IgnoreMAC,
-		KeyServices: opts.KeyServices,
+		Cipher:                opts.Cipher,
+		InputStore:            opts.InputStore,
+		InputPath:             opts.InputPath,
+		IgnoreMAC:             opts.IgnoreMAC,
+		KeyServices:           opts.KeyServices,
+		DecryptionCredentials: opts.DecryptionCredentials,
 	})
 	if err != nil {
 		return nil, err
@@ -37,11 +39,12 @@ func set(opts setOpts) ([]byte, error) {
 
 	// Decrypt the file
 	dataKey, err := common.DecryptTree(common.DecryptTreeOpts{
-		Cipher:          opts.Cipher,
-		IgnoreMac:       opts.IgnoreMAC,
-		Tree:            tree,
-		KeyServices:     opts.KeyServices,
-		DecryptionOrder: opts.DecryptionOrder,
+		Cipher:                opts.Cipher,
+		IgnoreMac:             opts.IgnoreMAC,
+		Tree:                  tree,
+		KeyServices:           opts.KeyServices,
+		DecryptionOrder:       opts.DecryptionOrder,
+		DecryptionCredentials: opts.DecryptionCredentials,
 	})
 	if err != nil {
 		return nil, err

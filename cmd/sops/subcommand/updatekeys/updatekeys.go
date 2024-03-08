@@ -14,13 +14,14 @@ import (
 
 // Opts represents key operation options and config
 type Opts struct {
-	InputPath       string
-	GroupQuorum     int
-	KeyServices     []keyservice.KeyServiceClient
-	DecryptionOrder []string
-	Interactive     bool
-	ConfigPath      string
-	InputType       string
+	InputPath             string
+	GroupQuorum           int
+	KeyServices           []keyservice.KeyServiceClient
+	DecryptionOrder       []string
+	Interactive           bool
+	ConfigPath            string
+	InputType             string
+	DecryptionCredentials map[string]string
 }
 
 // UpdateKeys update the keys for a given file
@@ -93,7 +94,7 @@ func updateFile(opts Opts) error {
 		tree.Metadata.ShamirThreshold = opts.GroupQuorum
 	}
 	tree.Metadata.ShamirThreshold = min(tree.Metadata.ShamirThreshold, len(tree.Metadata.KeyGroups))
-	errs := tree.Metadata.UpdateMasterKeysWithKeyServices(key, opts.KeyServices)
+	errs := tree.Metadata.UpdateMasterKeysWithKeyServices(key, opts.KeyServices, opts.DecryptionCredentials)
 	if len(errs) > 0 {
 		return fmt.Errorf("error updating one or more master keys: %s", errs)
 	}
