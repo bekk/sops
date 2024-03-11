@@ -225,12 +225,13 @@ func GetKMSKeyWithEncryptionCtx(tree *sops.Tree) (keyGroupIndex int, keyIndex in
 
 // GenericDecryptOpts represents decryption options and config
 type GenericDecryptOpts struct {
-	Cipher          sops.Cipher
-	InputStore      sops.Store
-	InputPath       string
-	IgnoreMAC       bool
-	KeyServices     []keyservice.KeyServiceClient
-	DecryptionOrder []string
+	Cipher                sops.Cipher
+	InputStore            sops.Store
+	InputPath             string
+	IgnoreMAC             bool
+	KeyServices           []keyservice.KeyServiceClient
+	DecryptionOrder       []string
+	DecryptionCredentials map[string]string
 }
 
 // LoadEncryptedFileWithBugFixes is a wrapper around LoadEncryptedFile which includes
@@ -300,7 +301,7 @@ func FixAWSKMSEncryptionContextBug(opts GenericDecryptOpts, tree *sops.Tree) (*s
 		return nil, NewExitError(fmt.Sprintf("Failed to decrypt, meaning there is likely another problem from the encryption context bug: %s", err), codes.ErrorDecryptingTree)
 	}
 
-	errs := tree.Metadata.UpdateMasterKeysWithKeyServices(dataKey, opts.KeyServices)
+	errs := tree.Metadata.UpdateMasterKeysWithKeyServices(dataKey, opts.KeyServices, opts.DecryptionCredentials)
 	if len(errs) > 0 {
 		err = fmt.Errorf("Could not re-encrypt data key: %s", errs)
 		return nil, err

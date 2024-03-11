@@ -493,23 +493,23 @@ func (tree Tree) Decrypt(key []byte, cipher Cipher) (string, error) {
 }
 
 // GenerateDataKey generates a new random data key and encrypts it with all MasterKeys.
-func (tree Tree) GenerateDataKey() ([]byte, []error) {
+func (tree Tree) GenerateDataKey(encryptionCredentials map[string]string) ([]byte, []error) {
 	newKey := make([]byte, 32)
 	_, err := rand.Read(newKey)
 	if err != nil {
 		return nil, []error{fmt.Errorf("Could not generate random key: %s", err)}
 	}
-	return newKey, tree.Metadata.UpdateMasterKeys(newKey)
+	return newKey, tree.Metadata.UpdateMasterKeys(newKey, encryptionCredentials)
 }
 
 // GenerateDataKeyWithKeyServices generates a new random data key and encrypts it with all MasterKeys.
-func (tree *Tree) GenerateDataKeyWithKeyServices(svcs []keyservice.KeyServiceClient) ([]byte, []error) {
+func (tree *Tree) GenerateDataKeyWithKeyServices(svcs []keyservice.KeyServiceClient, encryptionCredentials map[string]string) ([]byte, []error) {
 	newKey := make([]byte, 32)
 	_, err := rand.Read(newKey)
 	if err != nil {
 		return nil, []error{fmt.Errorf("Could not generate random key: %s", err)}
 	}
-	return newKey, tree.Metadata.UpdateMasterKeysWithKeyServices(newKey, svcs)
+	return newKey, tree.Metadata.UpdateMasterKeysWithKeyServices(newKey, svcs, encryptionCredentials)
 }
 
 // Metadata holds information about a file encrypted by sops
@@ -593,7 +593,7 @@ func (m *Metadata) MasterKeyCount() int {
 }
 
 // UpdateMasterKeysWithKeyServices encrypts the data key with all master keys using the provided key services
-func (m *Metadata) UpdateMasterKeysWithKeyServices(dataKey []byte, svcs []keyservice.KeyServiceClient) (errs []error) {
+func (m *Metadata) UpdateMasterKeysWithKeyServices(dataKey []byte, svcs []keyservice.KeyServiceClient, encryptionCredentials map[string]string) (errs []error) {
 	if len(svcs) == 0 {
 		return []error{
 			fmt.Errorf("no key services provided, cannot update master keys"),
@@ -626,7 +626,7 @@ func (m *Metadata) UpdateMasterKeysWithKeyServices(dataKey []byte, svcs []keyser
 	for i, group := range m.KeyGroups {
 		part := parts[i]
 		for _, key := range group {
-			svcKey := keyservice.KeyFromMasterKey(key, nil)
+			svcKey := keyservice.KeyFromMasterKey(key, encryptionCredentials)
 			var keyErrs []error
 			encrypted := false
 			for _, svc := range svcs {
@@ -653,10 +653,10 @@ func (m *Metadata) UpdateMasterKeysWithKeyServices(dataKey []byte, svcs []keyser
 }
 
 // UpdateMasterKeys encrypts the data key with all master keys
-func (m *Metadata) UpdateMasterKeys(dataKey []byte) (errs []error) {
+func (m *Metadata) UpdateMasterKeys(dataKey []byte, encryptionCredentials map[string]string) (errs []error) {
 	return m.UpdateMasterKeysWithKeyServices(dataKey, []keyservice.KeyServiceClient{
 		keyservice.NewLocalClient(),
-	})
+	}, encryptionCredentials)
 }
 
 // GetDataKeyWithKeyServices retrieves the data key, asking KeyServices to decrypt it with each

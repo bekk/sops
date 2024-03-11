@@ -10,14 +10,15 @@ import (
 
 // AddOpts are the options for adding a key group to a SOPS file
 type AddOpts struct {
-	InputPath       string
-	InputStore      sops.Store
-	OutputStore     sops.Store
-	Group           sops.KeyGroup
-	GroupThreshold  int
-	InPlace         bool
-	KeyServices     []keyservice.KeyServiceClient
-	DecryptionOrder []string
+	InputPath             string
+	InputStore            sops.Store
+	OutputStore           sops.Store
+	Group                 sops.KeyGroup
+	GroupThreshold        int
+	InPlace               bool
+	KeyServices           []keyservice.KeyServiceClient
+	DecryptionOrder       []string
+	DecryptionCredentials map[string]string
 }
 
 // Add adds a key group to a SOPS file
@@ -35,7 +36,7 @@ func Add(opts AddOpts) error {
 	if opts.GroupThreshold != 0 {
 		tree.Metadata.ShamirThreshold = opts.GroupThreshold
 	}
-	tree.Metadata.UpdateMasterKeysWithKeyServices(dataKey, opts.KeyServices)
+	tree.Metadata.UpdateMasterKeysWithKeyServices(dataKey, opts.KeyServices, opts.DecryptionCredentials)
 	output, err := opts.OutputStore.EmitEncryptedFile(*tree)
 	if err != nil {
 		return err

@@ -12,25 +12,27 @@ import (
 )
 
 type rotateOpts struct {
-	Cipher           sops.Cipher
-	InputStore       sops.Store
-	OutputStore      sops.Store
-	InputPath        string
-	IgnoreMAC        bool
-	AddMasterKeys    []keys.MasterKey
-	RemoveMasterKeys []keys.MasterKey
-	KeyServices      []keyservice.KeyServiceClient
-	DecryptionOrder  []string
+	Cipher                sops.Cipher
+	InputStore            sops.Store
+	OutputStore           sops.Store
+	InputPath             string
+	IgnoreMAC             bool
+	AddMasterKeys         []keys.MasterKey
+	RemoveMasterKeys      []keys.MasterKey
+	KeyServices           []keyservice.KeyServiceClient
+	DecryptionOrder       []string
+	DecryptionCredentials map[string]string
 }
 
 func rotate(opts rotateOpts) ([]byte, error) {
 	tree, err := common.LoadEncryptedFileWithBugFixes(common.GenericDecryptOpts{
-		Cipher:          opts.Cipher,
-		InputStore:      opts.InputStore,
-		InputPath:       opts.InputPath,
-		IgnoreMAC:       opts.IgnoreMAC,
-		KeyServices:     opts.KeyServices,
-		DecryptionOrder: opts.DecryptionOrder,
+		Cipher:                opts.Cipher,
+		InputStore:            opts.InputStore,
+		InputPath:             opts.InputPath,
+		IgnoreMAC:             opts.IgnoreMAC,
+		KeyServices:           opts.KeyServices,
+		DecryptionOrder:       opts.DecryptionOrder,
+		DecryptionCredentials: opts.DecryptionCredentials,
 	})
 	if err != nil {
 		return nil, err
@@ -67,7 +69,7 @@ func rotate(opts rotateOpts) ([]byte, error) {
 	}
 
 	// Create a new data key
-	dataKey, errs := tree.GenerateDataKeyWithKeyServices(opts.KeyServices)
+	dataKey, errs := tree.GenerateDataKeyWithKeyServices(opts.KeyServices, opts.DecryptionCredentials)
 	if len(errs) > 0 {
 		err = fmt.Errorf("Could not generate data key: %s", errs)
 		return nil, err

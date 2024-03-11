@@ -511,13 +511,14 @@ func main() {
 							}
 						}
 						return groups.Add(groups.AddOpts{
-							InputPath:      c.String("file"),
-							InPlace:        c.Bool("in-place"),
-							InputStore:     inputStore(c, c.String("file")),
-							OutputStore:    outputStore(c, c.String("file")),
-							Group:          group,
-							GroupThreshold: c.Int("shamir-secret-sharing-threshold"),
-							KeyServices:    keyservices(c),
+							InputPath:             c.String("file"),
+							InPlace:               c.Bool("in-place"),
+							InputStore:            inputStore(c, c.String("file")),
+							OutputStore:           outputStore(c, c.String("file")),
+							Group:                 group,
+							GroupThreshold:        c.Int("shamir-secret-sharing-threshold"),
+							KeyServices:           keyservices(c),
+							DecryptionCredentials: map[string]string{"gcp-kms": c.String("gcp-access-token")},
 						})
 					},
 				},
@@ -550,13 +551,14 @@ func main() {
 						}
 
 						return groups.Delete(groups.DeleteOpts{
-							InputPath:      c.String("file"),
-							InPlace:        c.Bool("in-place"),
-							InputStore:     inputStore(c, c.String("file")),
-							OutputStore:    outputStore(c, c.String("file")),
-							Group:          uint(group),
-							GroupThreshold: c.Int("shamir-secret-sharing-threshold"),
-							KeyServices:    keyservices(c),
+							InputPath:             c.String("file"),
+							InPlace:               c.Bool("in-place"),
+							InputStore:            inputStore(c, c.String("file")),
+							OutputStore:           outputStore(c, c.String("file")),
+							Group:                 uint(group),
+							GroupThreshold:        c.Int("shamir-secret-sharing-threshold"),
+							KeyServices:           keyservices(c),
+							DecryptionCredentials: map[string]string{"gcp-kms": c.String("gcp-access-token")},
 						})
 					},
 				},
@@ -593,12 +595,13 @@ func main() {
 				failedCounter := 0
 				for _, path := range c.Args() {
 					err := updatekeys.UpdateKeys(updatekeys.Opts{
-						InputPath:   path,
-						GroupQuorum: c.Int("shamir-secret-sharing-quorum"),
-						KeyServices: keyservices(c),
-						Interactive: !c.Bool("yes"),
-						ConfigPath:  configPath,
-						InputType:   c.String("input-type"),
+						InputPath:             path,
+						GroupQuorum:           c.Int("shamir-secret-sharing-quorum"),
+						KeyServices:           keyservices(c),
+						Interactive:           !c.Bool("yes"),
+						ConfigPath:            configPath,
+						InputType:             c.String("input-type"),
+						DecryptionCredentials: map[string]string{"gcp-kms": c.String("gcp-access-token")},
 					})
 
 					if c.NArg() == 1 {
@@ -1191,14 +1194,15 @@ func main() {
 				_, statErr := os.Stat(fileName)
 				fileExists := statErr == nil
 				opts := editOpts{
-					OutputStore:     outputStore,
-					InputStore:      inputStore,
-					InputPath:       fileName,
-					Cipher:          aes.NewCipher(),
-					KeyServices:     svcs,
-					DecryptionOrder: order,
-					IgnoreMAC:       c.Bool("ignore-mac"),
-					ShowMasterKeys:  c.Bool("show-master-keys"),
+					OutputStore:           outputStore,
+					InputStore:            inputStore,
+					InputPath:             fileName,
+					Cipher:                aes.NewCipher(),
+					KeyServices:           svcs,
+					DecryptionOrder:       order,
+					IgnoreMAC:             c.Bool("ignore-mac"),
+					ShowMasterKeys:        c.Bool("show-master-keys"),
+					DecryptionCredentials: map[string]string{"gcp-kms": c.String("gcp-access-token")},
 				}
 				if fileExists {
 					output, err = edit(opts)
@@ -1293,15 +1297,16 @@ func main() {
 					return toExitError(err)
 				}
 				output, err := set(setOpts{
-					OutputStore:     outputStore,
-					InputStore:      inputStore,
-					InputPath:       fileName,
-					Cipher:          aes.NewCipher(),
-					KeyServices:     svcs,
-					DecryptionOrder: order,
-					IgnoreMAC:       c.Bool("ignore-mac"),
-					Value:           value,
-					TreePath:        path,
+					OutputStore:           outputStore,
+					InputStore:            inputStore,
+					InputPath:             fileName,
+					Cipher:                aes.NewCipher(),
+					KeyServices:           svcs,
+					DecryptionOrder:       order,
+					IgnoreMAC:             c.Bool("ignore-mac"),
+					Value:                 value,
+					TreePath:              path,
+					DecryptionCredentials: map[string]string{"gcp-kms": c.String("gcp-access-token")},
 				})
 				if err != nil {
 					return toExitError(err)
@@ -1631,15 +1636,16 @@ func main() {
 				return toExitError(err)
 			}
 			output, err = set(setOpts{
-				OutputStore:     outputStore,
-				InputStore:      inputStore,
-				InputPath:       fileName,
-				Cipher:          aes.NewCipher(),
-				KeyServices:     svcs,
-				DecryptionOrder: order,
-				IgnoreMAC:       c.Bool("ignore-mac"),
-				Value:           value,
-				TreePath:        path,
+				OutputStore:           outputStore,
+				InputStore:            inputStore,
+				InputPath:             fileName,
+				Cipher:                aes.NewCipher(),
+				KeyServices:           svcs,
+				DecryptionOrder:       order,
+				IgnoreMAC:             c.Bool("ignore-mac"),
+				Value:                 value,
+				TreePath:              path,
+				DecryptionCredentials: map[string]string{"gcp-kms": c.String("gcp-access-token")},
 			})
 		}
 
@@ -1648,14 +1654,15 @@ func main() {
 			_, statErr := os.Stat(fileName)
 			fileExists := statErr == nil
 			opts := editOpts{
-				OutputStore:     outputStore,
-				InputStore:      inputStore,
-				InputPath:       fileName,
-				Cipher:          aes.NewCipher(),
-				KeyServices:     svcs,
-				DecryptionOrder: order,
-				IgnoreMAC:       c.Bool("ignore-mac"),
-				ShowMasterKeys:  c.Bool("show-master-keys"),
+				OutputStore:           outputStore,
+				InputStore:            inputStore,
+				InputPath:             fileName,
+				Cipher:                aes.NewCipher(),
+				KeyServices:           svcs,
+				DecryptionOrder:       order,
+				IgnoreMAC:             c.Bool("ignore-mac"),
+				ShowMasterKeys:        c.Bool("show-master-keys"),
+				DecryptionCredentials: map[string]string{"gcp-kms": c.String("gcp-access-token")},
 			}
 			if fileExists {
 				output, err = edit(opts)
@@ -1780,13 +1787,14 @@ func getEncryptConfig(c *cli.Context, fileName string) (encryptConfig, error) {
 	}
 
 	return encryptConfig{
-		UnencryptedSuffix: unencryptedSuffix,
-		EncryptedSuffix:   encryptedSuffix,
-		UnencryptedRegex:  unencryptedRegex,
-		EncryptedRegex:    encryptedRegex,
-		MACOnlyEncrypted:  macOnlyEncrypted,
-		KeyGroups:         groups,
-		GroupThreshold:    threshold,
+		UnencryptedSuffix:     unencryptedSuffix,
+		EncryptedSuffix:       encryptedSuffix,
+		UnencryptedRegex:      unencryptedRegex,
+		EncryptedRegex:        encryptedRegex,
+		MACOnlyEncrypted:      macOnlyEncrypted,
+		KeyGroups:             groups,
+		GroupThreshold:        threshold,
+		EncryptionCredentials: map[string]string{"gcp-kms": c.String("gcp-access-token")},
 	}, nil
 }
 
@@ -1855,13 +1863,14 @@ func getEncryptConfigFromString(c *cli.Context, fileName string, configString st
 	}
 
 	return encryptConfig{
-		UnencryptedSuffix: unencryptedSuffix,
-		EncryptedSuffix:   encryptedSuffix,
-		UnencryptedRegex:  unencryptedRegex,
-		EncryptedRegex:    encryptedRegex,
-		MACOnlyEncrypted:  macOnlyEncrypted,
-		KeyGroups:         groups,
-		GroupThreshold:    threshold,
+		UnencryptedSuffix:     unencryptedSuffix,
+		EncryptedSuffix:       encryptedSuffix,
+		UnencryptedRegex:      unencryptedRegex,
+		EncryptedRegex:        encryptedRegex,
+		MACOnlyEncrypted:      macOnlyEncrypted,
+		KeyGroups:             groups,
+		GroupThreshold:        threshold,
+		EncryptionCredentials: map[string]string{"gcp-kms": c.String("gcp-access-token")},
 	}, nil
 }
 
@@ -1911,15 +1920,16 @@ func getRotateOpts(c *cli.Context, fileName string, inputStore common.Store, out
 		return rotateOpts{}, err
 	}
 	return rotateOpts{
-		OutputStore:      outputStore,
-		InputStore:       inputStore,
-		InputPath:        fileName,
-		Cipher:           aes.NewCipher(),
-		KeyServices:      svcs,
-		DecryptionOrder:  decryptionOrder,
-		IgnoreMAC:        c.Bool("ignore-mac"),
-		AddMasterKeys:    addMasterKeys,
-		RemoveMasterKeys: rmMasterKeys,
+		OutputStore:           outputStore,
+		InputStore:            inputStore,
+		InputPath:             fileName,
+		Cipher:                aes.NewCipher(),
+		KeyServices:           svcs,
+		DecryptionOrder:       decryptionOrder,
+		IgnoreMAC:             c.Bool("ignore-mac"),
+		AddMasterKeys:         addMasterKeys,
+		RemoveMasterKeys:      rmMasterKeys,
+		DecryptionCredentials: map[string]string{"gcp-kms": c.String("gcp-access-token")},
 	}, nil
 }
 
