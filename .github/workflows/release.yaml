@@ -35,7 +35,6 @@ jobs:
           path: sops-*
 
   prepare_release:
-    needs: build
     runs-on: ubuntu-latest
     steps:
       - name: Create release
@@ -50,7 +49,7 @@ jobs:
           prerelease: false
 
   release:
-    needs: prepare_release
+    needs: [build, prepare_release]
     runs-on: ubuntu-latest
     strategy:
       matrix:
