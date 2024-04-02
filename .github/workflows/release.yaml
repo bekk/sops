@@ -32,10 +32,12 @@ jobs:
         with:
           name: ${{ github.ref_name }}-${{ matrix.goos }}-${{ matrix.goarch }}
           path: sops-*
-
+  
   prepare_release:
     runs-on: ubuntu-latest
     permissions: write-all
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
     steps:
       - name: Create release
         id: create_release
@@ -47,23 +49,23 @@ jobs:
           release_name: Release ${{ github.ref_name }}
           draft: false
           prerelease: false
-
+  
   release:
-    needs: [build, prepare_release]
+    needs: [ build, prepare_release ]
     runs-on: ubuntu-latest
     permissions: write-all
     strategy:
       matrix:
         goos: [ linux, darwin ]
         goarch: [ arm64, amd64 ]
-
+    
     steps:
       - name: Upload assets
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ needs.prepare_release.outputs.upload_url }}
+          upload_url: ${{ jobs.prepare_release.outputs.upload_url }}
           asset_path: ./sops-${{ github.ref_name }}-${{ matrix.goos }}-${{ matrix.goarch }}
           asset_name: sops-${{ github.ref_name }}-${{ matrix.goos }}-${{ matrix.goarch }}
           asset_content_type: application/octet-stream
