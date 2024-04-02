@@ -1,0 +1,65 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [ linux, darwin ]
+        goarch: [ arm64, amd64 ]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.21.x
+      
+      - name: Build for ${{ matrix.goos }} ${{ matrix.goarch }}
+        run: |
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          OUTPUT_NAME=sops-${TAG_NAME}-${{ matrix.goos }}-${{ matrix.goarch }}
+          env GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -v -o ${{ matrix.output_name }}
+      
+      - name: Upload artifact ${{ matrix.output_name }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: ${{ github.run_id }}-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: sops-*
+  
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [ linux, darwin ]
+        goarch: [ arm64, amd64 ]
+
+    steps:
+      - name: Create release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false
+      
+      - name: Upload assets
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./sops-${{ github.ref_name }}-${{ matrix.goos }}-${{ matrix.goarch }}
+          asset_name: sops-${{ github.ref_name }}-${{ matrix.goos }}-${{ matrix.goarch }}
+          asset_content_type: application/octet-stream
