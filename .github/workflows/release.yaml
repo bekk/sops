@@ -24,12 +24,12 @@ jobs:
       
       - name: Build for ${{ matrix.goos }} ${{ matrix.goarch }}
         run: |
-          env GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -v -o ${{ matrix.goos }}-${{ matrix.goarch }}
+          env GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -v -o sops-${{ github.ref_name }}-${{ matrix.goos }}-${{ matrix.goarch }}
       
       - name: Upload artifact ${{ matrix.goos }}-${{ matrix.goarch }}
         uses: actions/upload-artifact@v2
         with:
-          name: ${{ matrix.goos }}-${{ matrix.goarch }}
+          name: sops-${{ github.ref_name }}-${{ matrix.goos }}-${{ matrix.goarch }}
           path: sops-*
   
   prepare_release:
@@ -68,6 +68,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.prepare_release.outputs.upload_url }}
-          asset_path: ${{ matrix.goos }}-${{ matrix.goarch }}
+          asset_path: sops-${{ github.ref_name }}-${{ matrix.goos }}-${{ matrix.goarch }}
           asset_name: sops-${{ github.ref_name }}-${{ matrix.goos }}-${{ matrix.goarch }}
           asset_content_type: application/octet-stream
