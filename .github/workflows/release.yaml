@@ -35,6 +35,7 @@ jobs:
 
   prepare_release:
     runs-on: ubuntu-latest
+    permissions: write-all
     steps:
       - name: Create release
         id: create_release
@@ -50,6 +51,7 @@ jobs:
   release:
     needs: [build, prepare_release]
     runs-on: ubuntu-latest
+    permissions: write-all
     strategy:
       matrix:
         goos: [ linux, darwin ]
