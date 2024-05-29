@@ -664,6 +664,10 @@ func main() {
 					Usage:  "comma separated list of decryption key types",
 					EnvVar: "SOPS_DECRYPTION_ORDER",
 				},
+				cli.StringFlag{
+					Name:  "gcp-access-token",
+					Usage: "access token to use for GCP KMS access",
+				},
 			}, keyserviceFlags...),
 			Action: func(c *cli.Context) error {
 				if c.Bool("verbose") {
