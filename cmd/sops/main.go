@@ -1861,7 +1861,7 @@ func getEncryptConfigFromString(c *cli.Context, fileName string, configString st
 	}
 
 	var threshold int
-	threshold, err = shamirThreshold(c, fileName)
+	threshold, err = shamirThresholdFromString(configString, fileName)
 	if err != nil {
 		return encryptConfig{}, err
 	}
@@ -2232,6 +2232,17 @@ func shamirThreshold(c *cli.Context, file string) (int, error) {
 		return c.Int("shamir-secret-sharing-threshold"), nil
 	}
 	conf, err := loadConfig(c, file, nil)
+	if conf == nil {
+		// This takes care of the following two case:
+		// 1. No config was provided. Err will be nil and ShamirThreshold will be the default value of 0.
+		// 2. We did find a config file, but failed to load it. In that case the calling function will print the error and exit.
+		return 0, err
+	}
+	return conf.ShamirThreshold, nil
+}
+
+func shamirThresholdFromString(c string, file string) (int, error) {
+	conf, err := loadConfigFromString(c, file, nil)
 	if conf == nil {
 		// This takes care of the following two case:
 		// 1. No config was provided. Err will be nil and ShamirThreshold will be the default value of 0.
