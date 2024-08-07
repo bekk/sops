@@ -12,7 +12,7 @@ import (
 )
 
 // Version represents the value of the current semantic version.
-var Version = "3.8.1"
+var Version = "3.9.0"
 
 // PrintVersion prints the current version of sops. If the flag
 // `--disable-version-check` is set, the function will not attempt
@@ -101,7 +101,7 @@ func RetrieveLatestVersionFromUpstream() (string, error) {
 //
 // Unlike RetrieveLatestVersionFromUpstream, it returns the tag (e.g. "v3.7.3").
 func RetrieveLatestReleaseVersion() (tag, url string, err error) {
-	const repository = "mozilla/sops"
+	const repository = "getsops/sops"
 	return newReleaseFetcher().LatestRelease(repository)
 }
 
