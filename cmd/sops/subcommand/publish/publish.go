@@ -27,17 +27,16 @@ func init() {
 
 // Opts represents publish options and config
 type Opts struct {
-	Interactive           bool
-	Cipher                sops.Cipher
-	ConfigPath            string
-	InputPath             string
-	KeyServices           []keyservice.KeyServiceClient
-	DecryptionOrder       []string
-	InputStore            sops.Store
-	OmitExtensions        bool
-	Recursive             bool
-	RootPath              string
-	DecryptionCredentials map[string]string
+	Interactive     bool
+	Cipher          sops.Cipher
+	ConfigPath      string
+	InputPath       string
+	KeyServices     []keyservice.KeyServiceClient
+	DecryptionOrder []string
+	InputStore      sops.Store
+	OmitExtensions  bool
+	Recursive       bool
+	RootPath        string
 }
 
 // Run publish operation
@@ -83,12 +82,11 @@ func Run(opts Opts) error {
 		if len(conf.KeyGroups[0]) != 0 {
 			log.Debug("Re-encrypting tree before publishing")
 			_, err = common.DecryptTree(common.DecryptTreeOpts{
-				Cipher:                opts.Cipher,
-				IgnoreMac:             false,
-				Tree:                  tree,
-				KeyServices:           opts.KeyServices,
-				DecryptionOrder:       opts.DecryptionOrder,
-				DecryptionCredentials: opts.DecryptionCredentials,
+				Cipher:          opts.Cipher,
+				IgnoreMac:       false,
+				Tree:            tree,
+				KeyServices:     opts.KeyServices,
+				DecryptionOrder: opts.DecryptionOrder,
 			})
 			if err != nil {
 				return err
@@ -114,7 +112,7 @@ func Run(opts Opts) error {
 				ShamirThreshold:   conf.ShamirThreshold,
 			}
 
-			dataKey, errs := tree.GenerateDataKeyWithKeyServices(opts.KeyServices, opts.DecryptionCredentials)
+			dataKey, errs := tree.GenerateDataKeyWithKeyServices(opts.KeyServices)
 			if len(errs) > 0 {
 				err = fmt.Errorf("Could not generate data key: %s", errs)
 				return err

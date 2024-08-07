@@ -20,15 +20,14 @@ import (
 )
 
 type editOpts struct {
-	Cipher                sops.Cipher
-	InputStore            common.Store
-	OutputStore           common.Store
-	InputPath             string
-	IgnoreMAC             bool
-	KeyServices           []keyservice.KeyServiceClient
-	DecryptionOrder       []string
-	ShowMasterKeys        bool
-	DecryptionCredentials map[string]string
+	Cipher          sops.Cipher
+	InputStore      common.Store
+	OutputStore     common.Store
+	InputPath       string
+	IgnoreMAC       bool
+	KeyServices     []keyservice.KeyServiceClient
+	DecryptionOrder []string
+	ShowMasterKeys  bool
 }
 
 type editExampleOpts struct {
@@ -61,7 +60,7 @@ func editExample(opts editExampleOpts) ([]byte, error) {
 	}
 
 	// Generate a data key
-	dataKey, errs := tree.GenerateDataKeyWithKeyServices(opts.KeyServices, opts.DecryptionCredentials)
+	dataKey, errs := tree.GenerateDataKeyWithKeyServices(opts.KeyServices)
 	if len(errs) > 0 {
 		return nil, common.NewExitError(fmt.Sprintf("Error encrypting the data key with one or more master keys: %s", errs), codes.CouldNotRetrieveKey)
 	}
@@ -72,24 +71,22 @@ func editExample(opts editExampleOpts) ([]byte, error) {
 func edit(opts editOpts) ([]byte, error) {
 	// Load the file
 	tree, err := common.LoadEncryptedFileWithBugFixes(common.GenericDecryptOpts{
-		Cipher:                opts.Cipher,
-		InputStore:            opts.InputStore,
-		InputPath:             opts.InputPath,
-		IgnoreMAC:             opts.IgnoreMAC,
-		KeyServices:           opts.KeyServices,
-		DecryptionCredentials: opts.DecryptionCredentials,
+		Cipher:      opts.Cipher,
+		InputStore:  opts.InputStore,
+		InputPath:   opts.InputPath,
+		IgnoreMAC:   opts.IgnoreMAC,
+		KeyServices: opts.KeyServices,
 	})
 	if err != nil {
 		return nil, err
 	}
 	// Decrypt the file
 	dataKey, err := common.DecryptTree(common.DecryptTreeOpts{
-		Cipher:                opts.Cipher,
-		IgnoreMac:             opts.IgnoreMAC,
-		Tree:                  tree,
-		KeyServices:           opts.KeyServices,
-		DecryptionOrder:       opts.DecryptionOrder,
-		DecryptionCredentials: opts.DecryptionCredentials,
+		Cipher:          opts.Cipher,
+		IgnoreMac:       opts.IgnoreMAC,
+		Tree:            tree,
+		KeyServices:     opts.KeyServices,
+		DecryptionOrder: opts.DecryptionOrder,
 	})
 	if err != nil {
 		return nil, err

@@ -2,14 +2,14 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-PROJECT             := github.com/MagnusTonnessen/sops
+PROJECT             := github.com/getsops/sops/v3
 PROJECT_DIR         := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
 BIN_DIR             := $(PROJECT_DIR)/bin
 
 GO                  := GOPROXY=https://proxy.golang.org go
 GO_TEST_FLAGS       ?= -race -coverprofile=profile.out -covermode=atomic
 
-GITHUB_REPOSITORY   ?= github.com/MagnusTonnessen/sops
+GITHUB_REPOSITORY   ?= github.com/getsops/sops
 
 STATICCHECK         := $(BIN_DIR)/staticcheck
 STATICCHECK_VERSION := latest
@@ -67,7 +67,7 @@ checkmd: $(MD_FILES)
 .PHONY: test
 test: vendor
 	gpg --import pgp/sops_functional_tests_key.asc 2>&1 1>/dev/null || exit 0
-	$(GO) test $(GO_TEST_FLAGS) ./...
+	LANG=en_US.UTF-8 $(GO) test $(GO_TEST_FLAGS) ./...
 
 .PHONY: showcoverage
 showcoverage: test
@@ -78,7 +78,7 @@ generate: keyservice/keyservice.pb.go
 	$(GO) generate
 
 %.pb.go: %.proto
-	protoc --go-grpc_out=. --go_opt=paths=source_relative --go_out=. $<
+	protoc --go_out=plugins=grpc:. $<
 
 .PHONY: functional-tests
 functional-tests:
@@ -94,7 +94,7 @@ functional-tests-all:
 
 .PHONY: release-snapshot
 release-snapshot: install-goreleaser install-syft
-	GITHUB_REPOSITORY=$(GITHUB_REPOSITORY) $(GORELEASER) release --clean --snapshot --skip-sign
+	GITHUB_REPOSITORY=$(GITHUB_REPOSITORY) $(GORELEASER) release --clean --snapshot --skip=sign
 
 .PHONY: clean
 clean:
