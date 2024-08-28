@@ -222,9 +222,8 @@ Encrypting with SSH keys via age is not yet supported by SOPS.
 Encrypting using GCP KMS
 ~~~~~~~~~~~~~~~~~~~~~~~~
 GCP KMS has support for authorization with the use of `Application Default Credentials
-<https://developers.google.com/identity/protocols/application-default-credentials>`_ and access tokens.
+<https://developers.google.com/identity/protocols/application-default-credentials>`_ and using an oauth2 token.
 Application default credentials precedes the use of access token.
-
 
 Using Application Default Credentials you can authorize by doing this:
 
@@ -240,19 +239,15 @@ you can enable application default credentials using the sdk:
 
     $ gcloud auth application-default login
 
-
-
 Using oauth tokens you can authorize by doing this:
 
 .. code:: sh
+    $ export GOOGLE_OAUTH_ACCESS_TOKEN=<your access token>
 
-    $ export CLOUDSDK_AUTH_ACCESS_TOKEN=<your access token>
-
-If you are already logged in 
+Or if you are logged in you can authorize by generating an access token:
 
 .. code:: sh
-
-    $ export CLOUDSDK_AUTH_ACCESS_TOKEN=$(gcloud auth print-access-token)
+    $ export GOOGLE_OAUTH_ACCESS_TOKEN="$(gcloud auth print-access-token)"
 
 
 Encrypting/decrypting with GCP KMS requires a KMS ResourceID. You can use the
@@ -689,6 +684,11 @@ It is often tedious to specify the ``--kms`` ``--gcp-kms`` ``--pgp`` and ``--age
 of all new files. If your secrets are stored under a specific directory, like a
 ``git`` repository, you can create a ``.sops.yaml`` configuration file at the root
 directory to define which keys are used for which filename.
+
+.. note::
+
+  The file needs to be named ``.sops.yaml``. Other names (i.e. ``.sops.yml``) won't be automatically
+  discovered by SOPS. You'll need to pass the ``--config .sops.yml`` option for it to be picked up.
 
 Let's take an example:
 
