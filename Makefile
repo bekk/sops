@@ -33,7 +33,7 @@ origin-build: test vet generate install functional-tests-all
 
 .PHONY: install
 install:
-	$(GO) install github.com/bekk/sops/cmd/sops
+	$(GO) install github.com/getsops/sops/v3/cmd/sops
 
 .PHONY: staticcheck
 staticcheck: install-staticcheck
@@ -82,12 +82,12 @@ generate: keyservice/keyservice.pb.go
 
 .PHONY: functional-tests
 functional-tests:
-	$(GO) build -o functional-tests/sops github.com/bekk/sops/cmd/sops
+	$(GO) build -o functional-tests/sops github.com/getsops/sops/v3/cmd/sops
 	cd functional-tests && cargo test
 
 .PHONY: functional-tests-all
 functional-tests-all:
-	$(GO) build -o functional-tests/sops github.com/bekk/sops/cmd/sops
+	$(GO) build -o functional-tests/sops github.com/getsops/sops/v3/cmd/sops
 	# Ignored tests are ones that require external services (e.g. AWS KMS)
 	# 	TODO: Once `--include-ignored` lands in rust stable, switch to that.
 	cd functional-tests && cargo test && cargo test -- --ignored
