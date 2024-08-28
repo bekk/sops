@@ -11,7 +11,7 @@ A Sops document is a Tree composed of a data branch with arbitrary key/value pai
 and a metadata branch with encryption and integrity information.
 
 In JSON and YAML formats, the structure of the cleartext tree is preserved, keys are
-stored in cleartext and only values are encrypted. Keeping the values in cleartext
+stored in cleartext and only values are encrypted. Keeping the keys in cleartext
 provides better readability when storing Sops documents in version controls, and allows
 for merging competing changes on documents. This is a major difference between Sops
 and other encryption tools that store documents as encrypted blobs.
@@ -42,6 +42,7 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -75,6 +76,15 @@ const MacMismatch = sopsError("MAC mismatch")
 
 // MetadataNotFound occurs when the input file is malformed and doesn't have sops metadata in it
 const MetadataNotFound = sopsError("sops metadata not found")
+
+type SopsKeyNotFound struct {
+	Key interface{}
+	Msg string
+}
+
+func (e *SopsKeyNotFound) Error() string {
+	return fmt.Sprintf(e.Msg, e.Key)
+}
 
 // MACOnlyEncryptedInitialization is a constant and known sequence of 32 bytes used to initialize
 // MAC which is computed only over values which end up encrypted. That assures that a MAC with the
@@ -189,6 +199,53 @@ func (branch TreeBranch) Set(path []interface{}, value interface{}) TreeBranch {
 	return set(branch, path, value).(TreeBranch)
 }
 
+func unset(branch interface{}, path []interface{}) (interface{}, error) {
+	switch branch := branch.(type) {
+	case TreeBranch:
+		for i, item := range branch {
+			if item.Key == path[0] {
+				if len(path) == 1 {
+					branch = slices.Delete(branch, i, i+1)
+				} else {
+					v, err := unset(item.Value, path[1:])
+					if err != nil {
+						return nil, err
+					}
+					branch[i].Value = v
+				}
+				return branch, nil
+			}
+		}
+		return nil, &SopsKeyNotFound{Msg: "Key not found: %s", Key: path[0]}
+	case []interface{}:
+		position := path[0].(int)
+		if position >= len(branch) {
+			return nil, &SopsKeyNotFound{Msg: "Index %d out of bounds", Key: path[0]}
+		}
+		if len(path) == 1 {
+			branch = slices.Delete(branch, position, position+1)
+		} else {
+			v, err := unset(branch[position], path[1:])
+			if err != nil {
+				return nil, err
+			}
+			branch[position] = v
+		}
+		return branch, nil
+	default:
+		return nil, fmt.Errorf("Unsupported type: %T for item '%s'", branch, path[0])
+	}
+}
+
+// Unset removes a value on a given tree from the specified path
+func (branch TreeBranch) Unset(path []interface{}) (TreeBranch, error) {
+	v, err := unset(branch, path)
+	if err != nil {
+		return nil, err
+	}
+	return v.(TreeBranch), nil
+}
+
 // Tree is the data structure used by sops to represent documents internally
 type Tree struct {
 	Metadata Metadata
@@ -228,24 +285,24 @@ func (branch TreeBranch) Truncate(path []interface{}) (interface{}, error) {
 	return current, nil
 }
 
-func (branch TreeBranch) walkValue(in interface{}, path []string, onLeaves func(in interface{}, path []string) (interface{}, error)) (interface{}, error) {
+func (branch TreeBranch) walkValue(in interface{}, path []string, commentsStack [][]string, onLeaves func(in interface{}, path []string, commentsStack [][]string) (interface{}, error)) (interface{}, error) {
 	switch in := in.(type) {
 	case string:
-		return onLeaves(in, path)
+		return onLeaves(in, path, commentsStack)
 	case []byte:
-		return onLeaves(string(in), path)
+		return onLeaves(string(in), path, commentsStack)
 	case int:
-		return onLeaves(in, path)
+		return onLeaves(in, path, commentsStack)
 	case bool:
-		return onLeaves(in, path)
+		return onLeaves(in, path, commentsStack)
 	case float64:
-		return onLeaves(in, path)
+		return onLeaves(in, path, commentsStack)
 	case Comment:
-		return onLeaves(in, path)
+		return onLeaves(in, path, commentsStack)
 	case TreeBranch:
-		return branch.walkBranch(in, path, onLeaves)
+		return branch.walkBranch(in, path, commentsStack, onLeaves)
 	case []interface{}:
-		return branch.walkSlice(in, path, onLeaves)
+		return branch.walkSlice(in, path, commentsStack, onLeaves)
 	case nil:
 		// the value returned remains the same since it doesn't make
 		// sense to encrypt or decrypt a nil value
@@ -255,21 +312,38 @@ func (branch TreeBranch) walkValue(in interface{}, path []string, onLeaves func(
 	}
 }
 
-func (branch TreeBranch) walkSlice(in []interface{}, path []string, onLeaves func(in interface{}, path []string) (interface{}, error)) ([]interface{}, error) {
+func (branch TreeBranch) walkSlice(in []interface{}, path []string, commentsStack [][]string, onLeaves func(in interface{}, path []string, commentsStack [][]string) (interface{}, error)) ([]interface{}, error) {
+	// Because append returns a new slice, the original stack is not changed.
+	commentsStack = append(commentsStack, []string{})
 	for i, v := range in {
-		newV, err := branch.walkValue(v, path, onLeaves)
+		c, vIsComment := v.(Comment)
+		if vIsComment {
+			// If v is a comment, we add it to the slice of active comments.
+			// This allows us to also encrypt comments themselves by enabling encryption in a prior comment.
+			commentsStack[len(commentsStack)-1] = append(commentsStack[len(commentsStack)-1], c.Value)
+		}
+		newV, err := branch.walkValue(v, path, commentsStack, onLeaves)
 		if err != nil {
 			return nil, err
 		}
 		in[i] = newV
+		if !vIsComment {
+			// If v is not a comment, we clear the slice of active comments.
+			commentsStack[len(commentsStack)-1] = []string{}
+		}
 	}
 	return in, nil
 }
 
-func (branch TreeBranch) walkBranch(in TreeBranch, path []string, onLeaves func(in interface{}, path []string) (interface{}, error)) (TreeBranch, error) {
+func (branch TreeBranch) walkBranch(in TreeBranch, path []string, commentsStack [][]string, onLeaves func(in interface{}, path []string, commentsStack [][]string) (interface{}, error)) (TreeBranch, error) {
+	// Because append returns a new slice, the original stack is not changed.
+	commentsStack = append(commentsStack, []string{})
 	for i, item := range in {
-		if _, ok := item.Key.(Comment); ok {
-			enc, err := branch.walkValue(item.Key, path, onLeaves)
+		if c, ok := item.Key.(Comment); ok {
+			// If key is a comment, we add it to the slice of active comments.
+			// This allows us to also encrypt comments themselves by enabling encryption in a prior comment.
+			commentsStack[len(commentsStack)-1] = append(commentsStack[len(commentsStack)-1], c.Value)
+			enc, err := branch.walkValue(item.Key, path, commentsStack, onLeaves)
 			if err != nil {
 				return nil, err
 			}
@@ -283,26 +357,113 @@ func (branch TreeBranch) walkBranch(in TreeBranch, path []string, onLeaves func(
 				return nil, fmt.Errorf("walkValue of Comment should be either Comment or string, was %T", enc)
 			}
 		}
+		c, valueIsComment := item.Value.(Comment)
+		if valueIsComment {
+			// If value is a comment, we add it to the slice of active comments.
+			// This allows us to also encrypt comments themselves by enabling encryption in a prior comment.
+			commentsStack[len(commentsStack)-1] = append(commentsStack[len(commentsStack)-1], c.Value)
+		}
 		key, ok := item.Key.(string)
 		if !ok {
 			return nil, fmt.Errorf("Tree contains a non-string key (type %T): %s. Only string keys are"+
 				"supported", item.Key, item.Key)
 		}
-		newV, err := branch.walkValue(item.Value, append(path, key), onLeaves)
+		newV, err := branch.walkValue(item.Value, append(path, key), commentsStack, onLeaves)
 		if err != nil {
 			return nil, err
 		}
 		in[i].Value = newV
+		if !valueIsComment {
+			// If value is not a comment, we clear the slice of active comments.
+			commentsStack[len(commentsStack)-1] = []string{}
+		}
 	}
 	return in, nil
+}
+
+func (tree Tree) shouldBeEncrypted(path []string, commentsStack [][]string, isComment bool) bool {
+	encrypted := true
+	if tree.Metadata.UnencryptedSuffix != "" {
+		for _, v := range path {
+			if strings.HasSuffix(v, tree.Metadata.UnencryptedSuffix) {
+				encrypted = false
+				break
+			}
+		}
+	}
+	if tree.Metadata.EncryptedSuffix != "" {
+		encrypted = false
+		for _, v := range path {
+			if strings.HasSuffix(v, tree.Metadata.EncryptedSuffix) {
+				encrypted = true
+				break
+			}
+		}
+	}
+	if tree.Metadata.UnencryptedRegex != "" {
+		for _, p := range path {
+			matched, _ := regexp.Match(tree.Metadata.UnencryptedRegex, []byte(p))
+			if matched {
+				encrypted = false
+				break
+			}
+		}
+	}
+	if tree.Metadata.EncryptedRegex != "" {
+		encrypted = false
+		for _, p := range path {
+			matched, _ := regexp.Match(tree.Metadata.EncryptedRegex, []byte(p))
+			if matched {
+				encrypted = true
+				break
+			}
+		}
+	}
+	if tree.Metadata.UnencryptedCommentRegex != "" {
+	unencryptedComments:
+		for _, cs := range commentsStack {
+			for _, c := range cs {
+				matched, _ := regexp.Match(tree.Metadata.UnencryptedCommentRegex, []byte(c))
+				if matched {
+					encrypted = false
+					break unencryptedComments
+				}
+			}
+		}
+	}
+	if tree.Metadata.EncryptedCommentRegex != "" {
+		lenCommentsStack := len(commentsStack)
+		lenLastCommentsStack := len(commentsStack[lenCommentsStack-1])
+		encrypted = false
+	encryptedComments:
+		for i, cs := range commentsStack {
+			for j, c := range cs {
+				// A special case. We do not encrypt the comment line itself which matches the regex.
+				// So we skip the last line of the last set of comments. Only if the matches any previous
+				// line, we encrypt this comment. Otherwise we do not.
+				if isComment && i == lenCommentsStack-1 && j == lenLastCommentsStack-1 {
+					continue
+				}
+				matched, _ := regexp.Match(tree.Metadata.EncryptedCommentRegex, []byte(c))
+				if matched {
+					encrypted = true
+					break encryptedComments
+				}
+			}
+		}
+	}
+	return encrypted
 }
 
 // Encrypt walks over the tree and encrypts all values with the provided cipher,
 // except those whose key ends with the UnencryptedSuffix specified on the
 // Metadata struct, those not ending with EncryptedSuffix, if EncryptedSuffix
 // is provided (by default it is not), those not matching EncryptedRegex,
-// if EncryptedRegex is provided (by default it is not) or those matching
-// UnencryptedRegex, if UnencryptedRegex is provided (by default it is not).
+// if EncryptedRegex is provided (by default it is not), those matching UnencryptedRegex,
+// if UnencryptedRegex is provided (by default it is not), those with their comment
+// not matching EncryptedCommentRegex, if EncryptedCommentRegex is provided (by default
+// it is not), or those with their comment matching UnencryptedCommentRegex, if
+// UnencryptedCommentRegex is provided (by default it is not).
 // If encryption is successful, it returns the MAC for the encrypted tree
 // (all values if MACOnlyEncrypted is false, or only over values which end
 // up encrypted if MACOnlyEncrypted is true).
@@ -317,47 +478,12 @@ func (tree Tree) Encrypt(key []byte, cipher Cipher) (string, error) {
 		hash.Write(MACOnlyEncryptedInitialization)
 	}
 	walk := func(branch TreeBranch) error {
-		_, err := branch.walkBranch(branch, make([]string, 0), func(in interface{}, path []string) (interface{}, error) {
-			encrypted := true
-			if tree.Metadata.UnencryptedSuffix != "" {
-				for _, v := range path {
-					if strings.HasSuffix(v, tree.Metadata.UnencryptedSuffix) {
-						encrypted = false
-						break
-					}
-				}
-			}
-			if tree.Metadata.EncryptedSuffix != "" {
-				encrypted = false
-				for _, v := range path {
-					if strings.HasSuffix(v, tree.Metadata.EncryptedSuffix) {
-						encrypted = true
-						break
-					}
-				}
-			}
-			if tree.Metadata.UnencryptedRegex != "" {
-				for _, p := range path {
-					matched, _ := regexp.Match(tree.Metadata.UnencryptedRegex, []byte(p))
-					if matched {
-						encrypted = false
-						break
-					}
-				}
-			}
-			if tree.Metadata.EncryptedRegex != "" {
-				encrypted = false
-				for _, p := range path {
-					matched, _ := regexp.Match(tree.Metadata.EncryptedRegex, []byte(p))
-					if matched {
-						encrypted = true
-						break
-					}
-				}
-			}
+		_, err := branch.walkBranch(branch, make([]string, 0), make([][]string, 0), func(in interface{}, path []string, commentsStack [][]string) (interface{}, error) {
+			_, ok := in.(Comment)
+			encrypted := tree.shouldBeEncrypted(path, commentsStack, ok)
 			if !tree.Metadata.MACOnlyEncrypted || encrypted {
 				// Only add to MAC if not a comment
-				if _, ok := in.(Comment); !ok {
+				if !ok {
 					bytes, err := ToBytes(in)
 					if err != nil {
 						return nil, fmt.Errorf("Could not convert %s to bytes: %s", in, err)
@@ -371,6 +497,14 @@ func (tree Tree) Encrypt(key []byte, cipher Cipher) (string, error) {
 				in, err = cipher.Encrypt(in, key, pathString)
 				if err != nil {
 					return nil, fmt.Errorf("Could not encrypt value: %s", err)
+				}
+				if ok && tree.Metadata.UnencryptedCommentRegex != "" {
+					// If an encrypted comment matches tree.Metadata.UnencryptedCommentRegex, decryption will fail
+					// as the MAC does not match, and the commented value will not be decrypted.
+					matched, _ := regexp.Match(tree.Metadata.UnencryptedCommentRegex, []byte(in.(string)))
+					if matched {
+						return nil, fmt.Errorf("Encrypted comment %q matches UnencryptedCommentRegex! Make sure that UnencryptedCommentRegex cannot match an encrypted comment.", in)
+					}
 				}
 			}
 			return in, nil
@@ -407,49 +541,14 @@ func (tree Tree) Decrypt(key []byte, cipher Cipher) (string, error) {
 		hash.Write(MACOnlyEncryptedInitialization)
 	}
 	walk := func(branch TreeBranch) error {
-		_, err := branch.walkBranch(branch, make([]string, 0), func(in interface{}, path []string) (interface{}, error) {
-			encrypted := true
-			if tree.Metadata.UnencryptedSuffix != "" {
-				for _, p := range path {
-					if strings.HasSuffix(p, tree.Metadata.UnencryptedSuffix) {
-						encrypted = false
-						break
-					}
-				}
-			}
-			if tree.Metadata.EncryptedSuffix != "" {
-				encrypted = false
-				for _, p := range path {
-					if strings.HasSuffix(p, tree.Metadata.EncryptedSuffix) {
-						encrypted = true
-						break
-					}
-				}
-			}
-			if tree.Metadata.UnencryptedRegex != "" {
-				for _, p := range path {
-					matched, _ := regexp.Match(tree.Metadata.UnencryptedRegex, []byte(p))
-					if matched {
-						encrypted = false
-						break
-					}
-				}
-			}
-			if tree.Metadata.EncryptedRegex != "" {
-				encrypted = false
-				for _, p := range path {
-					matched, _ := regexp.Match(tree.Metadata.EncryptedRegex, []byte(p))
-					if matched {
-						encrypted = true
-						break
-					}
-				}
-			}
+		_, err := branch.walkBranch(branch, make([]string, 0), make([][]string, 0), func(in interface{}, path []string, commentsStack [][]string) (interface{}, error) {
+			c, ok := in.(Comment)
+			encrypted := tree.shouldBeEncrypted(path, commentsStack, ok)
 			var v interface{}
 			if encrypted {
 				var err error
 				pathString := strings.Join(path, ":") + ":"
-				if c, ok := in.(Comment); ok {
+				if ok {
 					v, err = cipher.Decrypt(c.Value, key, pathString)
 					if err != nil {
 						// Assume the comment was not encrypted in the first place
@@ -493,23 +592,23 @@ func (tree Tree) Decrypt(key []byte, cipher Cipher) (string, error) {
 }
 
 // GenerateDataKey generates a new random data key and encrypts it with all MasterKeys.
-func (tree Tree) GenerateDataKey(encryptionCredentials map[string]string) ([]byte, []error) {
+func (tree Tree) GenerateDataKey() ([]byte, []error) {
 	newKey := make([]byte, 32)
 	_, err := rand.Read(newKey)
 	if err != nil {
 		return nil, []error{fmt.Errorf("Could not generate random key: %s", err)}
 	}
-	return newKey, tree.Metadata.UpdateMasterKeys(newKey, encryptionCredentials)
+	return newKey, tree.Metadata.UpdateMasterKeys(newKey)
 }
 
 // GenerateDataKeyWithKeyServices generates a new random data key and encrypts it with all MasterKeys.
-func (tree *Tree) GenerateDataKeyWithKeyServices(svcs []keyservice.KeyServiceClient, encryptionCredentials map[string]string) ([]byte, []error) {
+func (tree *Tree) GenerateDataKeyWithKeyServices(svcs []keyservice.KeyServiceClient) ([]byte, []error) {
 	newKey := make([]byte, 32)
 	_, err := rand.Read(newKey)
 	if err != nil {
 		return nil, []error{fmt.Errorf("Could not generate random key: %s", err)}
 	}
-	return newKey, tree.Metadata.UpdateMasterKeysWithKeyServices(newKey, svcs, encryptionCredentials)
+	return newKey, tree.Metadata.UpdateMasterKeysWithKeyServices(newKey, svcs)
 }
 
 // Metadata holds information about a file encrypted by sops
@@ -519,6 +618,8 @@ type Metadata struct {
 	EncryptedSuffix           string
 	UnencryptedRegex          string
 	EncryptedRegex            string
+	UnencryptedCommentRegex   string
+	EncryptedCommentRegex     string
 	MessageAuthenticationCode string
 	MACOnlyEncrypted          bool
 	Version                   string
@@ -567,9 +668,9 @@ type ValueEmitter interface {
 	EmitValue(interface{}) ([]byte, error)
 }
 
-// CheckEncryped is the interface for testing whether a branch contains sops
+// CheckEncrypted is the interface for testing whether a branch contains sops
 // metadata. This is used to check whether a file is already encrypted or not.
-type CheckEncryped interface {
+type CheckEncrypted interface {
 	HasSopsTopLevelKey(TreeBranch) bool
 }
 
@@ -580,7 +681,7 @@ type Store interface {
 	EncryptedFileEmitter
 	PlainFileEmitter
 	ValueEmitter
-	CheckEncryped
+	CheckEncrypted
 }
 
 // MasterKeyCount returns the number of master keys available
@@ -593,7 +694,7 @@ func (m *Metadata) MasterKeyCount() int {
 }
 
 // UpdateMasterKeysWithKeyServices encrypts the data key with all master keys using the provided key services
-func (m *Metadata) UpdateMasterKeysWithKeyServices(dataKey []byte, svcs []keyservice.KeyServiceClient, encryptionCredentials map[string]string) (errs []error) {
+func (m *Metadata) UpdateMasterKeysWithKeyServices(dataKey []byte, svcs []keyservice.KeyServiceClient) (errs []error) {
 	if len(svcs) == 0 {
 		return []error{
 			fmt.Errorf("no key services provided, cannot update master keys"),
@@ -626,7 +727,7 @@ func (m *Metadata) UpdateMasterKeysWithKeyServices(dataKey []byte, svcs []keyser
 	for i, group := range m.KeyGroups {
 		part := parts[i]
 		for _, key := range group {
-			svcKey := keyservice.KeyFromMasterKey(key, encryptionCredentials)
+			svcKey := keyservice.KeyFromMasterKey(key)
 			var keyErrs []error
 			encrypted := false
 			for _, svc := range svcs {
@@ -653,15 +754,15 @@ func (m *Metadata) UpdateMasterKeysWithKeyServices(dataKey []byte, svcs []keyser
 }
 
 // UpdateMasterKeys encrypts the data key with all master keys
-func (m *Metadata) UpdateMasterKeys(dataKey []byte, encryptionCredentials map[string]string) (errs []error) {
+func (m *Metadata) UpdateMasterKeys(dataKey []byte) (errs []error) {
 	return m.UpdateMasterKeysWithKeyServices(dataKey, []keyservice.KeyServiceClient{
 		keyservice.NewLocalClient(),
-	}, encryptionCredentials)
+	})
 }
 
 // GetDataKeyWithKeyServices retrieves the data key, asking KeyServices to decrypt it with each
 // MasterKey in the Metadata's KeySources until one of them succeeds.
-func (m Metadata) GetDataKeyWithKeyServices(svcs []keyservice.KeyServiceClient, decryptionOrder []string, decryptionCredentials map[string]string) ([]byte, error) {
+func (m Metadata) GetDataKeyWithKeyServices(svcs []keyservice.KeyServiceClient, decryptionOrder []string) ([]byte, error) {
 	if m.DataKey != nil {
 		return m.DataKey, nil
 	}
@@ -671,7 +772,7 @@ func (m Metadata) GetDataKeyWithKeyServices(svcs []keyservice.KeyServiceClient, 
 	}
 	var parts [][]byte
 	for i, group := range m.KeyGroups {
-		part, err := decryptKeyGroup(group, svcs, decryptionOrder, decryptionCredentials)
+		part, err := decryptKeyGroup(group, svcs, decryptionOrder)
 		if err == nil {
 			parts = append(parts, part)
 		}
@@ -701,14 +802,14 @@ func (m Metadata) GetDataKeyWithKeyServices(svcs []keyservice.KeyServiceClient, 
 // decryptKeyGroup tries to decrypt the contents of the provided KeyGroup with
 // any of the MasterKeys in the KeyGroup with any of the provided key services,
 // returning as soon as one key service succeeds.
-func decryptKeyGroup(group KeyGroup, svcs []keyservice.KeyServiceClient, decryptionOrder []string, decryptionCredentials map[string]string) ([]byte, error) {
+func decryptKeyGroup(group KeyGroup, svcs []keyservice.KeyServiceClient, decryptionOrder []string) ([]byte, error) {
 	var keyErrs []error
 	// Sort MasterKeys in the group so we try them in specific order
 	// Use sorted indices to avoid group slice modification
 	indices := sortKeyGroupIndices(group, decryptionOrder)
 	for _, indexVal := range indices {
 		key := group[indexVal]
-		part, err := decryptKey(key, svcs, decryptionCredentials)
+		part, err := decryptKey(key, svcs)
 		if err != nil {
 			keyErrs = append(keyErrs, err)
 		} else {
@@ -751,8 +852,8 @@ func sortKeyGroupIndices(group KeyGroup, decryptionOrder []string) []int {
 
 // decryptKey tries to decrypt the contents of the provided MasterKey with any
 // of the key services, returning as soon as one key service succeeds.
-func decryptKey(key keys.MasterKey, svcs []keyservice.KeyServiceClient, credentials map[string]string) ([]byte, error) {
-	svcKey := keyservice.KeyFromMasterKey(key, credentials)
+func decryptKey(key keys.MasterKey, svcs []keyservice.KeyServiceClient) ([]byte, error) {
+	svcKey := keyservice.KeyFromMasterKey(key)
 	var part []byte
 	decryptErr := decryptKeyError{
 		keyName: key.ToString(),
@@ -787,7 +888,7 @@ func decryptKey(key keys.MasterKey, svcs []keyservice.KeyServiceClient, credenti
 func (m Metadata) GetDataKey() ([]byte, error) {
 	return m.GetDataKeyWithKeyServices([]keyservice.KeyServiceClient{
 		keyservice.NewLocalClient(),
-	}, nil, nil)
+	}, nil)
 }
 
 // ToBytes converts a string, int, float or bool to a byte representation.

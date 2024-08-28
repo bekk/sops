@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"golang.org/x/oauth2"
 	"os"
 	"regexp"
 	"strings"
@@ -13,6 +12,7 @@ import (
 	kms "cloud.google.com/go/kms/apiv1"
 	"cloud.google.com/go/kms/apiv1/kmspb"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/oauth2"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
 
@@ -24,11 +24,9 @@ const (
 	// a path to a credentials file, or directly as the variable's value in JSON
 	// format.
 	SopsGoogleCredentialsEnv = "GOOGLE_CREDENTIALS"
-
-	// SopsGoogleAccessTokenEnv can be set as an environment variable as
-	// directly the google access token, instead of a credentials file
-	SopsGoogleAccessTokenEnv = "CLOUDSDK_AUTH_ACCESS_TOKEN"
-
+	// SopsGoogleCredentialsOAuthToken can be set as an environment variable as either
+	// a path to a file, or directly as the varialbe's value
+	SopsGoogleCredentialsOAuthToken = "GOOGLE_OAUTH_ACCESS_TOKEN"
 	// KeyTypeIdentifier is the string used to identify a GCP KMS MasterKey.
 	KeyTypeIdentifier = "gcp_kms"
 )
@@ -59,8 +57,6 @@ type MasterKey struct {
 	// credentialJSON is the Service Account credentials JSON used for
 	// authenticating towards the GCP KMS service.
 	credentialJSON []byte
-
-	AccessToken AccessToken
 	// grpcConn can be used to inject a custom GCP client connection.
 	// Mostly useful for testing at present, to wire the client to a mock
 	// server.
@@ -88,12 +84,6 @@ func MasterKeysFromResourceIDString(resourceID string) []*MasterKey {
 		keys = append(keys, NewMasterKeyFromResourceID(s))
 	}
 	return keys
-}
-
-type AccessToken string
-
-func (a AccessToken) ApplyToMasterKey(key *MasterKey) {
-	key.AccessToken = a
 }
 
 // CredentialJSON is the Service Account credentials JSON used for authenticating
@@ -230,29 +220,33 @@ func (key *MasterKey) newKMSClient() (*kms.KeyManagementClient, error) {
 
 	var opts []option.ClientOption
 	switch {
-	case key.AccessToken != "":
-		opts = append(opts, option.WithTokenSource(oauth2.StaticTokenSource(
-			&oauth2.Token{AccessToken: string(key.AccessToken)},
-		)))
 	case key.credentialJSON != nil:
 		opts = append(opts, option.WithCredentialsJSON(key.credentialJSON))
 	default:
-		credentialsOption, err := getGoogleCredentials()
-		if err != nil {
-			return nil, err
+		credentials, err_credentials_file := getGoogleCredentials()
+		if credentials != nil {
+			opts = append(opts, option.WithCredentialsJSON(credentials))
+			break
 		}
-		if credentialsOption != nil {
-			opts = append(opts, credentialsOption)
+
+		at_credentials, err_credentials_token := getGoogleOAuthToken()
+		if at_credentials != nil {
+			opts = append(opts, option.WithTokenSource(at_credentials))
+		}
+
+		if err_credentials_file != nil && err_credentials_token != nil {
+			return nil, fmt.Errorf("credentials: failed to get credentials for gcp kms, add default credentials or oauth access token")
 		}
 	}
+
 	if key.grpcConn != nil {
 		opts = append(opts, option.WithGRPCConn(key.grpcConn))
 	}
 
 	ctx := context.Background()
-	client, err := kms.NewKeyManagementClient(ctx, opts...)
-	if err != nil {
-		return nil, err
+	client, err_credentials := kms.NewKeyManagementClient(ctx, opts...)
+	if err_credentials != nil {
+		return nil, err_credentials
 	}
 
 	return client, nil
@@ -262,27 +256,28 @@ func (key *MasterKey) newKMSClient() (*kms.KeyManagementClient, error) {
 // either the file contents of the path of a credentials file, or as value in
 // JSON format. It returns an error if the file cannot be read, and may return
 // a nil byte slice if no value is set.
-func getGoogleCredentials() (option.ClientOption, error) {
-	if envCredentials, isSet := os.LookupEnv(SopsGoogleCredentialsEnv); isSet {
-		credentials := []byte(envCredentials)
-		if _, err := os.Stat(envCredentials); err == nil {
-			if credentials, err = os.ReadFile(envCredentials); err != nil {
-				return nil, err
-			}
+func getGoogleCredentials() ([]byte, error) {
+	if defaultCredentials, ok := os.LookupEnv(SopsGoogleCredentialsEnv); ok && len(defaultCredentials) > 0 {
+		if _, err := os.Stat(defaultCredentials); err == nil {
+			return os.ReadFile(defaultCredentials)
 		}
-		return option.WithCredentialsJSON(credentials), nil
+
+		return []byte(defaultCredentials), nil
 	}
-	if envToken, isSet := os.LookupEnv(SopsGoogleAccessTokenEnv); isSet {
-		token := []byte(envToken)
-		if _, err := os.Stat(envToken); err == nil {
-			if token, err = os.ReadFile(envToken); err != nil {
-				return nil, err
-			}
-		}
+	return nil, fmt.Errorf("could not find Google credential file")
+}
+
+// getGoogleOAuthToken returns the SopsGoogleCredentialsOauthToken variable,
+// as the oauth token.
+// It returns an error and nil if the envrionment variable is not set.
+func getGoogleOAuthToken() (oauth2.TokenSource, error) {
+	if token, isSet := os.LookupEnv(SopsGoogleCredentialsOAuthToken); isSet {
 		tokenSource := oauth2.StaticTokenSource(
-			&oauth2.Token{AccessToken: string(token)},
+			&oauth2.Token{AccessToken: token},
 		)
-		return option.WithTokenSource(tokenSource), nil
+
+		return tokenSource, nil
 	}
-	return nil, nil
+
+	return nil, fmt.Errorf("could not find Google OAuth token")
 }

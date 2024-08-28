@@ -205,6 +205,7 @@ the ``--age`` option or the **SOPS_AGE_RECIPIENTS** environment variable:
 When decrypting a file with the corresponding identity, SOPS will look for a
 text file name ``keys.txt`` located in a ``sops`` subdirectory of your user
 configuration directory. On Linux, this would be ``$XDG_CONFIG_HOME/sops/age/keys.txt``.
+If ``$XDG_CONFIG_HOME`` is not set ``$HOME/.config/sops/age/keys.txt`` is used instead.
 On macOS, this would be ``$HOME/Library/Application Support/sops/age/keys.txt``. On
 Windows, this would be ``%AppData%\sops\age\keys.txt``. You can specify the location
 of this file manually by setting the environment variable **SOPS_AGE_KEY_FILE**.
@@ -220,8 +221,12 @@ Encrypting with SSH keys via age is not yet supported by SOPS.
 
 Encrypting using GCP KMS
 ~~~~~~~~~~~~~~~~~~~~~~~~
-GCP KMS uses `Application Default Credentials
-<https://developers.google.com/identity/protocols/application-default-credentials>`_.
+GCP KMS has support for authorization with the use of `Application Default Credentials
+<https://developers.google.com/identity/protocols/application-default-credentials>`_ and using an oauth2 token.
+Application default credentials precedes the use of access token.
+
+Using Application Default Credentials you can authorize by doing this:
+
 If you already logged in using
 
 .. code:: sh
@@ -233,6 +238,19 @@ you can enable application default credentials using the sdk:
 .. code:: sh
 
     $ gcloud auth application-default login
+
+Using oauth tokens you can authorize by doing this:
+
+.. code:: sh
+
+    $ export GOOGLE_OAUTH_ACCESS_TOKEN=<your access token>
+
+Or if you are logged in you can authorize by generating an access token:
+
+.. code:: sh
+
+    $ export GOOGLE_OAUTH_ACCESS_TOKEN="$(gcloud auth print-access-token)"
+
 
 Encrypting/decrypting with GCP KMS requires a KMS ResourceID. You can use the
 cloud console the get the ResourceID or you can create one using the gcloud
@@ -255,6 +273,7 @@ Now you can encrypt a file using::
 And decrypt it using::
 
      $ sops decrypt test.enc.yaml
+
 
 Encrypting using Azure Key Vault
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -667,6 +686,11 @@ It is often tedious to specify the ``--kms`` ``--gcp-kms`` ``--pgp`` and ``--age
 of all new files. If your secrets are stored under a specific directory, like a
 ``git`` repository, you can create a ``.sops.yaml`` configuration file at the root
 directory to define which keys are used for which filename.
+
+.. note::
+
+  The file needs to be named ``.sops.yaml``. Other names (i.e. ``.sops.yml``) won't be automatically
+  discovered by SOPS. You'll need to pass the ``--config .sops.yml`` option for it to be picked up.
 
 Let's take an example:
 
@@ -1470,6 +1494,25 @@ The value must be formatted as json.
 
     $ sops set ~/git/svc/sops/example.yaml '["an_array"][1]' '{"uid1":null,"uid2":1000,"uid3":["bob"]}'
 
+Unset a sub-part in a document tree
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Symmetrically, SOPS can unset a specific part of a YAML or JSON document, by providing
+the path in the ``unset`` command. This is useful to unset specific values, like keys, without
+needing an editor.
+
+.. code:: sh
+
+    $ sops unset ~/git/svc/sops/example.yaml '["app2"]["key"]'
+
+The tree path syntax uses regular python dictionary syntax, without the
+variable name. Set to keys by naming them, and array elements by
+numbering them.
+
+.. code:: sh
+
+    $ sops unset ~/git/svc/sops/example.yaml '["an_array"][1]'
+
 Showing diffs in cleartext in git
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -1545,9 +1588,19 @@ that match the supplied regular expression. For example, this command:
 will not encrypt the values under the ``description`` and ``metadata`` keys in a YAML file
 containing kubernetes secrets, while encrypting everything else.
 
+For YAML files, another method is to use ``--encrypted-comment-regex`` which will
+only encrypt comments and values which have a preceding comment matching the supplied
+regular expression.
+
+Conversely, you can opt in to only left certain keys without encrypting by using the
+``--unencrypted-comment-regex`` option, which will leave the values and comments
+unencrypted when they have a preeceding comment, or a trailing comment on the same line,
+that matches the supplied regular expression.
+
 You can also specify these options in the ``.sops.yaml`` config file.
 
-Note: these four options ``--unencrypted-suffix``, ``--encrypted-suffix``, ``--encrypted-regex`` and ``--unencrypted-regex`` are
+Note: these six options ``--unencrypted-suffix``, ``--encrypted-suffix``, ``--encrypted-regex``,
+``--unencrypted-regex``, ``--encrypted-comment-regex``, and ``--unencrypted-comment-regex`` are
 mutually exclusive and cannot all be used in the same file.
 
 Encryption Protocol

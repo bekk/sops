@@ -77,13 +77,12 @@ type DecryptTreeOpts struct {
 	// IgnoreMac is whether or not to ignore the Message Authentication Code included in the SOPS tree
 	IgnoreMac bool
 	// Cipher is the cryptographic cipher to use to decrypt the values inside the tree
-	Cipher                sops.Cipher
-	DecryptionCredentials map[string]string
+	Cipher sops.Cipher
 }
 
 // DecryptTree decrypts the tree passed in through the DecryptTreeOpts and additionally returns the decrypted data key
 func DecryptTree(opts DecryptTreeOpts) (dataKey []byte, err error) {
-	dataKey, err = opts.Tree.Metadata.GetDataKeyWithKeyServices(opts.KeyServices, opts.DecryptionOrder, opts.DecryptionCredentials)
+	dataKey, err = opts.Tree.Metadata.GetDataKeyWithKeyServices(opts.KeyServices, opts.DecryptionOrder)
 	if err != nil {
 		return nil, NewExitError(err, codes.CouldNotRetrieveKey)
 	}
@@ -225,13 +224,12 @@ func GetKMSKeyWithEncryptionCtx(tree *sops.Tree) (keyGroupIndex int, keyIndex in
 
 // GenericDecryptOpts represents decryption options and config
 type GenericDecryptOpts struct {
-	Cipher                sops.Cipher
-	InputStore            sops.Store
-	InputPath             string
-	IgnoreMAC             bool
-	KeyServices           []keyservice.KeyServiceClient
-	DecryptionOrder       []string
-	DecryptionCredentials map[string]string
+	Cipher          sops.Cipher
+	InputStore      sops.Store
+	InputPath       string
+	IgnoreMAC       bool
+	KeyServices     []keyservice.KeyServiceClient
+	DecryptionOrder []string
 }
 
 // LoadEncryptedFileWithBugFixes is a wrapper around LoadEncryptedFile which includes
@@ -301,7 +299,7 @@ func FixAWSKMSEncryptionContextBug(opts GenericDecryptOpts, tree *sops.Tree) (*s
 		return nil, NewExitError(fmt.Sprintf("Failed to decrypt, meaning there is likely another problem from the encryption context bug: %s", err), codes.ErrorDecryptingTree)
 	}
 
-	errs := tree.Metadata.UpdateMasterKeysWithKeyServices(dataKey, opts.KeyServices, opts.DecryptionCredentials)
+	errs := tree.Metadata.UpdateMasterKeysWithKeyServices(dataKey, opts.KeyServices)
 	if len(errs) > 0 {
 		err = fmt.Errorf("Could not re-encrypt data key: %s", errs)
 		return nil, err

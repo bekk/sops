@@ -9,21 +9,19 @@ import (
 	"github.com/getsops/sops/v3/keyservice"
 )
 
-type setOpts struct {
+type unsetOpts struct {
 	Cipher          sops.Cipher
 	InputStore      sops.Store
 	OutputStore     sops.Store
 	InputPath       string
 	IgnoreMAC       bool
 	TreePath        []interface{}
-	Value           interface{}
 	KeyServices     []keyservice.KeyServiceClient
 	DecryptionOrder []string
 }
 
-func set(opts setOpts) ([]byte, error) {
+func unset(opts unsetOpts) ([]byte, error) {
 	// Load the file
-	// TODO: Issue #173: if the file does not exist, create it with the contents passed in as opts.Value
 	tree, err := common.LoadEncryptedFileWithBugFixes(common.GenericDecryptOpts{
 		Cipher:      opts.Cipher,
 		InputStore:  opts.InputStore,
@@ -47,8 +45,12 @@ func set(opts setOpts) ([]byte, error) {
 		return nil, err
 	}
 
-	// Set the value
-	tree.Branches[0] = tree.Branches[0].Set(opts.TreePath, opts.Value)
+	// Unset the value
+	newBranch, err := tree.Branches[0].Unset(opts.TreePath)
+	if err != nil {
+		return nil, err
+	}
+	tree.Branches[0] = newBranch
 
 	err = common.EncryptTree(common.EncryptTreeOpts{
 		DataKey: dataKey, Tree: tree, Cipher: opts.Cipher,

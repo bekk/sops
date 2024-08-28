@@ -20,8 +20,6 @@ type Server struct {
 	Prompt bool
 }
 
-func (ks *Server) mustEmbedUnimplementedKeyServiceServer() {}
-
 func (ks *Server) encryptWithPgp(key *PgpKey, plaintext []byte) ([]byte, error) {
 	pgpKey := pgp.NewMasterKeyFromFingerprint(key.Fingerprint)
 	err := pgpKey.Encrypt(plaintext)
@@ -42,8 +40,7 @@ func (ks *Server) encryptWithKms(key *KmsKey, plaintext []byte) ([]byte, error) 
 
 func (ks *Server) encryptWithGcpKms(key *GcpKmsKey, plaintext []byte) ([]byte, error) {
 	gcpKmsKey := gcpkms.MasterKey{
-		ResourceID:  key.ResourceId,
-		AccessToken: gcpkms.AccessToken(key.AccessToken),
+		ResourceID: key.ResourceId,
 	}
 	err := gcpKmsKey.Encrypt(plaintext)
 	if err != nil {
@@ -106,8 +103,7 @@ func (ks *Server) decryptWithKms(key *KmsKey, ciphertext []byte) ([]byte, error)
 
 func (ks *Server) decryptWithGcpKms(key *GcpKmsKey, ciphertext []byte) ([]byte, error) {
 	gcpKmsKey := gcpkms.MasterKey{
-		ResourceID:  key.ResourceId,
-		AccessToken: gcpkms.AccessToken(key.AccessToken),
+		ResourceID: key.ResourceId,
 	}
 	gcpKmsKey.EncryptedKey = string(ciphertext)
 	plaintext, err := gcpKmsKey.Decrypt()

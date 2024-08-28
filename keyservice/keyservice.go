@@ -17,7 +17,7 @@ import (
 )
 
 // KeyFromMasterKey converts a SOPS internal MasterKey to an RPC Key that can be serialized with Protocol Buffers
-func KeyFromMasterKey(mk keys.MasterKey, credentials map[string]string) Key {
+func KeyFromMasterKey(mk keys.MasterKey) Key {
 	switch mk := mk.(type) {
 	case *pgp.MasterKey:
 		return Key{
@@ -31,8 +31,7 @@ func KeyFromMasterKey(mk keys.MasterKey, credentials map[string]string) Key {
 		return Key{
 			KeyType: &Key_GcpKmsKey{
 				GcpKmsKey: &GcpKmsKey{
-					ResourceId:  mk.ResourceID,
-					AccessToken: credentials["gcp-kms"],
+					ResourceId: mk.ResourceID,
 				},
 			},
 		}
