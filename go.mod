@@ -1,6 +1,7 @@
 module github.com/getsops/sops/v3
 
-go 1.22
+go 1.22.0
+
 toolchain go1.24.1
 
 require (
@@ -36,6 +37,7 @@ require (
 	github.com/urfave/cli v1.22.16
 	golang.org/x/crypto v0.36.0
 	golang.org/x/net v0.37.0
+	golang.org/x/oauth2 v0.28.0
 	golang.org/x/sys v0.31.0
 	golang.org/x/term v0.30.0
 	google.golang.org/api v0.226.0
@@ -138,7 +140,6 @@ require (
 	go.opentelemetry.io/otel/sdk v1.34.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.34.0 // indirect
 	go.opentelemetry.io/otel/trace v1.34.0 // indirect
-	golang.org/x/oauth2 v0.28.0 // indirect
 	golang.org/x/sync v0.12.0 // indirect
 	golang.org/x/text v0.23.0 // indirect
 	golang.org/x/time v0.11.0 // indirect
