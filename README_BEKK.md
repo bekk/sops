@@ -58,8 +58,6 @@ gcloud auth login
 
 
 # Bygg nye versjoner for release
-Når vi har bygget en ny release har vi gjort dette manuelt til nå, gjør gjerne noe med det om du har mulighet 💖
-
 Det er lagt til to bekk-funksjoner i Makefilen som bygger varianter for ulike arkitekturer og OS-er.
 
 Denne bygger sops for linux(arm64 og amd64) og darwin(arm64 og amd64)
@@ -71,7 +69,6 @@ make bekk-clean
 ```
 
 ## Lag ny release
-Som sagt - bare gjort manuelt til nå, men kanskje en pipeline hadde gjort seg?
 
 1. Gå til ny [release](https://github.com/bekk/sops/releases/new)
 2. Lag en ny tag med 
