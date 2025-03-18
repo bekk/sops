@@ -58,7 +58,7 @@ gcloud auth login
 
 
 # Bygg nye versjoner for release
-Det er lagt til to bekk-funksjoner i Makefilen som bygger varianter for ulike arkitekturer og OS-er.
+Det er lagt til to bekk-funksjoner i Makefilen som bygger varianter for ulike arkitekturer og OS-er om du vil sjekke dette lokalt.
 
 Denne bygger sops for linux(arm64 og amd64) og darwin(arm64 og amd64)
 ```shell
@@ -69,17 +69,12 @@ make bekk-clean
 ```
 
 ## Lag ny release
+Det finnes github actions som bygger en ny release, så det eneste du trenger å gjøre er å lage en tag og pushe den. 
 
-1. Gå til ny [release](https://github.com/bekk/sops/releases/new)
-2. Lag en ny tag med 
+Workflow-fil finnes [her](https://github.com/bekk/sops/actions/runs/8534267753/workflow).
+
 ```shell 
 git checkout main
 git tag -a <versjon> -m "Release version x.x.x"
 git push origin <versjon>
 ```
-3. Bygg sops 
-```shell
-make bekk-build BINARY_PREFIX=sops-<din versjon>
-```
-4. Skriv en beskrivelse av ny release og legg til alle binary-variantene som lages med kommandoen over
-5. Publish new release
