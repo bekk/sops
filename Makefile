@@ -126,6 +126,10 @@ install-protoc-go:
 install-protoc-go-grpc:
 	$(call go-install-tool,$(PROTOC_GO_GRPC),google.golang.org/grpc/cmd/protoc-gen-go-grpc@$(PROTOC_GO_GRPC_VERSION),$(PROTOC_GO_GRPC_VERSION))
 
+
+
+
+
 # go-install-tool will 'go install' any package $2 and install it to $1.
 define go-install-tool
 @[ -f $(1)-$(3) ] || { \
@@ -134,3 +138,27 @@ GOBIN=$$(dirname $(1)) go install $(2) ;\
 touch $(1)-$(3) ;\
 }
 endef
+
+
+# Avd. Bekk ✨
+BEKK_BUILD_OUTPUT_DIR=cmd/sops/bekk-builds
+BINARY_PREFIX?=sops
+GO_FLAGS=-ldflags="-s -w"
+
+PLATFORMS=\
+	darwin/amd64 \
+	darwin/arm64 \
+	linux/amd64 \
+	linux/arm64
+
+.PHONY: bekk-build
+bekk-build:
+	@mkdir -p $(BEKK_BUILD_OUTPUT_DIR)
+	@for platform in $(PLATFORMS); do \
+		GOOS=$${platform%/*} GOARCH=$${platform#*/} \
+		go build ${GO_FLAGS} -o ${BEKK_BUILD_OUTPUT_DIR}/${BINARY_PREFIX}.$${platform%/*}.$${platform#*/} ./cmd/sops/ ; \
+	done
+
+.PHONY: bekk-clean
+bekk-clean:
+	rm -rf ${BEKK_BUILD_OUTPUT_DIR}
