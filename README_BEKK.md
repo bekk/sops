@@ -69,3 +69,20 @@ make bekk-build BINARY_PREFIX=sops-<din versjon>
 # rydd opp etterpå med
 make bekk-clean
 ```
+
+## Lag ny release
+Som sagt - bare gjort manuelt til nå, men kanskje en pipeline hadde gjort seg?
+
+1. Gå til ny [release](https://github.com/bekk/sops/releases/new)
+2. Lag en ny tag med 
+```shell 
+git checkout main
+git tag -a <versjon> -m "Release version x.x.x"
+git push origin <versjon>
+```
+3. Bygg sops 
+```shell
+make bekk-build BINARY_PREFIX=sops-<din versjon>
+```
+4. Skriv en beskrivelse av ny release og legg til alle binary-variantene som lages med kommandoen over
+5. Publish new release
