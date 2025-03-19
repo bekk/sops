@@ -20,6 +20,12 @@ SYFT_VERSION        ?= v0.87.0
 GORELEASER          := $(BIN_DIR)/goreleaser
 GORELEASER_VERSION  ?= v1.20.0
 
+PROTOC_GO           := $(BIN_DIR)/protoc-gen-go
+PROTOC_GO_VERSION   ?= v1.35.2
+
+PROTOC_GO_GRPC      := $(BIN_DIR)/protoc-gen-go-grpc
+PROTOC_GO_GRPC_VERSION ?= v1.5.1
+
 RSTCHECK            := $(shell command -v rstcheck)
 MARKDOWNLINT        := $(shell command -v mdl)
 
@@ -67,18 +73,18 @@ checkmd: $(MD_FILES)
 .PHONY: test
 test: vendor
 	gpg --import pgp/sops_functional_tests_key.asc 2>&1 1>/dev/null || exit 0
-	LANG=en_US.UTF-8 $(GO) test $(GO_TEST_FLAGS) ./...
+	unset SOPS_AGE_KEY_FILE; LANG=en_US.UTF-8 $(GO) test $(GO_TEST_FLAGS) ./...
 
 .PHONY: showcoverage
 showcoverage: test
 	$(GO) tool cover -html=profile.out
 
 .PHONY: generate
-generate: keyservice/keyservice.pb.go
+generate: install-protoc-go install-protoc-go-grpc keyservice/keyservice.pb.go
 	$(GO) generate
 
 %.pb.go: %.proto
-	protoc --go_out=plugins=grpc:. $<
+	protoc --plugin gen-go=$(PROTOC_GO) --plugin gen-go-grpc=$(PLUGIN_GO_GRPC) --go-grpc_opt=require_unimplemented_servers=false --go-grpc_out=. --go_out=. $<
 
 .PHONY: functional-tests
 functional-tests:
@@ -112,6 +118,18 @@ install-goreleaser:
 install-syft:
 	$(call go-install-tool,$(SYFT),github.com/anchore/syft/cmd/syft@$(SYFT_VERSION),$(SYFT_VERSION))
 
+.PHONY: install-protoc-go
+install-protoc-go:
+	$(call go-install-tool,$(PROTOC_GO),google.golang.org/protobuf/cmd/protoc-gen-go@$(PROTOC_GO_VERSION),$(PROTOC_GO_VERSION))
+
+.PHONY: install-protoc-go-grpc
+install-protoc-go-grpc:
+	$(call go-install-tool,$(PROTOC_GO_GRPC),google.golang.org/grpc/cmd/protoc-gen-go-grpc@$(PROTOC_GO_GRPC_VERSION),$(PROTOC_GO_GRPC_VERSION))
+
+
+
+
+
 # go-install-tool will 'go install' any package $2 and install it to $1.
 define go-install-tool
 @[ -f $(1)-$(3) ] || { \
@@ -120,3 +138,27 @@ GOBIN=$$(dirname $(1)) go install $(2) ;\
 touch $(1)-$(3) ;\
 }
 endef
+
+
+# Avd. Bekk ✨
+BEKK_BUILD_OUTPUT_DIR=cmd/sops/bekk-builds
+BINARY_PREFIX?=sops
+GO_FLAGS=-ldflags="-s -w"
+
+PLATFORMS=\
+	darwin/amd64 \
+	darwin/arm64 \
+	linux/amd64 \
+	linux/arm64
+
+.PHONY: bekk-build
+bekk-build:
+	@mkdir -p $(BEKK_BUILD_OUTPUT_DIR)
+	@for platform in $(PLATFORMS); do \
+		GOOS=$${platform%/*} GOARCH=$${platform#*/} \
+		go build ${GO_FLAGS} -o ${BEKK_BUILD_OUTPUT_DIR}/${BINARY_PREFIX}.$${platform%/*}.$${platform#*/} ./cmd/sops/ ; \
+	done
+
+.PHONY: bekk-clean
+bekk-clean:
+	rm -rf ${BEKK_BUILD_OUTPUT_DIR}
